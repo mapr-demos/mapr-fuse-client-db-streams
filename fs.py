@@ -180,6 +180,27 @@ def get_message(origin, offset):
     else:
         return "data t=%.1f" % (2*offset + origin)
 
+def get_message_from_offset(stream, offset):
+    if offset < 0:
+        offset = 0
+    messages = content[stream]
+    old = 0
+    c = 0
+    i = 0
+    while i < len(messages):
+        dc = len(messages[i]['data']) + len(delimiter)
+        if c + dc > offset:
+            break
+        i = i+1
+        c = c + 
+
+    # end of data
+    if i >= len(messages):
+        return (i, 0)
+
+    # offset is in message i
+    return (i, offset-c)
+
 def main(mountpoint, root):
     FUSE(Passthrough(root), mountpoint, nothreads=True, foreground=True)
 
