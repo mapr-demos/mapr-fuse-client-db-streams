@@ -23,3 +23,18 @@ def test_topics():
                             {'topic':'2', 'messages':['a','b','c']}], time_scale=100)
     time.sleep(0.1)
     assert s.get_topics() == ['a', '2']
+
+def test_progress():
+    s = stream.Stream(data=[{'topic':'a', 'messages': ['one', 'two', 'three']},
+                            {'topic':'2', 'messages':['a','b','c']}], time_scale=10)
+    # watch out ... this test is sensitive to delay
+    assert s.get_messages_for_topic('a') == []
+    assert s.get_messages_for_topic('1') == []
+    time.sleep(0.15)
+    assert s.get_messages_for_topic('a') == ['one']
+    assert s.get_messages_for_topic('2') == ['a']
+    time.sleep(0.1)
+    assert s.max_offset() == 2
+    assert s.get_messages_for_topic('a') == ['one', 'two']
+    assert s.get_messages_for_topic('2') == ['a', 'b']
+

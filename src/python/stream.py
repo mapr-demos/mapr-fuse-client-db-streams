@@ -3,6 +3,7 @@
 import json
 import time
 
+
 class Stream():
     '''Simulates a messsage stream with data stored in a list. Also supports finding the message by byte offset.
     The stream content consists of a list of topics, each of which is a dict with topic and messages. The messages
@@ -21,16 +22,25 @@ class Stream():
     def get_messages_for_topic(self, topic):
         data = [x['messages'] for x in self.content if x['topic'] == topic]
         if len(data) == 0:
-            return None
-        return data[0]
+            return []
+        else:
+            data = data[0]
+            n = self.max_offset(data)
+            return data[0:n]
 
     def get_message(self, topic, offset):
         data = self.get_messages_for_topic(topic)
-        t = (time.time() - self.origin) * self.time_scale
-        if (offset > t) | (offset > len(data)):
+        if offset > self.max_offset(data):
             return None
         else:
             return data[offset]
+
+    def max_offset(self, messages=None):
+        r = int((time.time() - self.origin) * self.time_scale)
+        print(r)
+        if messages:
+            r = min(r, len(messages))
+        return r
 
     def get_messages_from_offset(self, topic, offset):
         if offset < 0:
@@ -57,7 +67,7 @@ class Stream():
         messages = self.get_messages_for_topic(topic)
         return messages[i][delta:(delta+count)]
 
-    def length(self, topic):
+    def size(self, topic):
         delimiter_size = len(self.delimiter)
         return sum([len(m) + delimiter_size for m in self.get_messages_for_topic(topic)])
 
