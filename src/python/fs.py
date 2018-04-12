@@ -82,7 +82,9 @@ class Passthrough(Operations):
         if os.path.isdir(full_path):
             dirents.extend(os.listdir(full_path))
         elif self.is_fake_dir(full_path):
-            dirents.extend(get_stream(full_path).get_topics())
+            topics = get_stream(full_path).get_topics()
+            print("topics = %s" % topics)
+            dirents.extend(topics)
         else:
             print("mismatch: %s" % full_path)
         for r in dirents:
