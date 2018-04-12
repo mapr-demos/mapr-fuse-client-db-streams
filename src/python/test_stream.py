@@ -16,11 +16,11 @@ def test_offset():
     s = stream.Stream(data=[{'topic':'a', 'messages': ['one', 'two', 'three']},
                      {'topic':'2', 'messages':['a','b','c']}], time_scale=100)
     time.sleep(0.1)
-    assert s.read_bytes('a', 0, 100) == 'one\ntwo\nthree\n'
-    assert s.read_bytes('a', 5, 1) == 'w'
-    assert s.read_bytes('a', 5, 2) == 'wo'
-    assert s.read_bytes('a', 5, 7) == 'wo\nthre'
-    assert s.read_bytes('a', 8, 7) == 'three\n'
+    assert s.read_bytes('a', 0, 100) == b'one\ntwo\nthree\n'
+    assert s.read_bytes('a', 5, 1) == b'w'
+    assert s.read_bytes('a', 5, 2) == b'wo'
+    assert s.read_bytes('a', 5, 7) == b'wo\nthre'
+    assert s.read_bytes('a', 8, 7) == b'three\n'
 
 def test_topics():
     s = stream.Stream(data=[{'topic':'a', 'messages': ['one', 'two', 'three']},

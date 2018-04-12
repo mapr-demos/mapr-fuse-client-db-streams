@@ -70,7 +70,7 @@ class Stream():
             r = r + messages[i] + self.delimiter
         if (i1 > i0) & (i1 < len(messages)):
             r = r + (messages[i1] + self.delimiter)[0:delta1]
-        return r
+        return bytes(r, 'utf-8')
 
     def size(self, topic):
         delimiter_size = len(self.delimiter)
