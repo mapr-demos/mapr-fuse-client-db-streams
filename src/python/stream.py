@@ -62,4 +62,4 @@ class Stream():
         return sum([len(m) + delimiter_size for m in self.get_messages_for_topic(topic)])
 
     def get_topics(self):
-        return [x['topic'] for x in self.content]
+        return [str(x['topic']) for x in self.content]
