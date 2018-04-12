@@ -64,6 +64,7 @@ class Passthrough(Operations):
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                      'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
             r['st_size'] = get_stream(path).length(os.path.basename(full_path))
+            print("fake file attr(%s) = %s" % (path, r))
         elif self.is_fake_dir(full_path):
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
