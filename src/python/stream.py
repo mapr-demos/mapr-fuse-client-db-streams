@@ -37,7 +37,6 @@ class Stream():
 
     def max_offset(self, messages=None):
         r = int((time.time() - self.origin) * self.time_scale)
-        print(r)
         if messages:
             r = min(r, len(messages))
         return r
@@ -63,9 +62,15 @@ class Stream():
         return (i, offset-c)
 
     def read_bytes(self, topic, offset, count):
-        (i, delta) = self.get_messages_from_offset(topic, offset)
+        (i0, delta0) = self.get_messages_from_offset(topic, offset)
+        (i1, delta1) = self.get_messages_from_offset(topic, offset + count)
         messages = self.get_messages_for_topic(topic)
-        return messages[i][delta:(delta+count)]
+        r = (messages[i0] + self.delimiter)[delta0:(delta0+count)]
+        for i in range(i0 + 1, i1):
+            r = r + messages[i] + self.delimiter
+        if (i1 > i0) & (i1 < len(messages)):
+            r = r + (messages[i1] + self.delimiter)[0:delta1]
+        return r
 
     def size(self, topic):
         delimiter_size = len(self.delimiter)
