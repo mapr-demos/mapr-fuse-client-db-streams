@@ -6,7 +6,7 @@ import errno
 import os
 import re
 import sys
-from collections import defaultdict
+from functools import lru_cache
 
 from fuse import FUSE, FuseOSError, Operations
 
@@ -14,11 +14,14 @@ from stream import Stream
 
 fake_dir = re.compile(".*\\.dir$")
 
+@lru_cache(maxsize=32)
+def get_stream(path):
+    return Stream(path)
+
 class Passthrough(Operations):
 
     def __init__(self, root):
         self.root = root
-        self.streams = defaultdict(lambda file: Stream(file=file))
 
     # Helpers
     # =======
@@ -60,7 +63,7 @@ class Passthrough(Operations):
             st = os.lstat(os.path.dirname(full_path))
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                      'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
-            r['st_size'] = self.streams[path].length(os.path.basename(full_path))
+            r['st_size'] = get_stream(path).length(os.path.basename(full_path))
         elif self.is_fake_dir(full_path):
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -79,7 +82,7 @@ class Passthrough(Operations):
         if os.path.isdir(full_path):
             dirents.extend(os.listdir(full_path))
         elif self.is_fake_dir(full_path):
-            dirents.extend(self.streams[full_path].get_topics())
+            dirents.extend(get_stream(full_path).get_topics())
         else:
             print("mismatch: %s" % full_path)
         for r in dirents:
@@ -132,7 +135,7 @@ class Passthrough(Operations):
         full_path = self._full_path(path)
         print("opening from %s, %o" % (full_path, flags))
         if self.is_fake_file(full_path):
-            return self.open_streams[full_path]
+            return get_stream(full_path)
         else:
             return os.open(full_path, flags)
 
@@ -146,7 +149,7 @@ class Passthrough(Operations):
         if self.is_fake_file(full_path):
             stream = os.path.dirname(path)
             topic = os.path.basename(path)
-            return self.streams[stream].read_bytes(topic, offset, length)
+            return get_stream(stream).read_bytes(topic, offset, length)
         else:
             os.lseek(fh, offset, os.SEEK_SET)
             return os.read(fh, length)
