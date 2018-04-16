@@ -15,6 +15,7 @@ def test_timing():
 def test_offset():
     s = stream.Stream(data=[{'topic':'a', 'messages': ['one', 'two', 'three']},
                      {'topic':'2', 'messages':['a','b','c']}], time_scale=100)
+    assert s.read_bytes('a', 0, 100) == b''
     time.sleep(0.1)
     assert s.read_bytes('a', 0, 100) == b'one\ntwo\nthree\n'
     assert s.read_bytes('a', 5, 1) == b'w'

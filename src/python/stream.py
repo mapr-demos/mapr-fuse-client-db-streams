@@ -65,6 +65,8 @@ class Stream():
         (i0, delta0) = self.get_messages_from_offset(topic, offset)
         (i1, delta1) = self.get_messages_from_offset(topic, offset + count)
         messages = self.get_messages_for_topic(topic)
+        if len(messages) == 0:
+            return b''
         r = (messages[i0] + self.delimiter)[delta0:(delta0+count)]
         for i in range(i0 + 1, i1):
             r = r + messages[i] + self.delimiter
