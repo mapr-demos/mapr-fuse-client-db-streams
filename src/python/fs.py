@@ -50,6 +50,30 @@ class Passthrough(Operations):
     #         return False
     #     return True
 
+    def get_topics(self, full_path):
+        topic_names = []
+
+        raw_topics_info = self.get_all_topics_info(full_path)
+
+        if 'ERROR' in raw_topics_info:
+            return topic_names
+
+        for topic in raw_topics_info:
+            if len(topic) <= 0:
+                continue
+            topic_name = topic.strip().split()[3]
+            topic_names.append(topic_name)
+
+        return topic_names
+
+    def get_all_topics_info(self, full_path):
+        p = subprocess.Popen(['maprcli', 'stream', 'topic', 'list', '-path', full_path], stdout=subprocess.PIPE)
+        raw_topics_info = str(p.communicate()[0], 'ascii').split('\n')
+        if len(raw_topics_info) >= 3:
+            del raw_topics_info[0]
+            raw_topics_info.remove('')
+        return raw_topics_info
+
     def is_fake_file(self, full_path):
         return self.is_fake_dir(os.path.dirname(full_path))
 
@@ -92,6 +116,7 @@ class Passthrough(Operations):
                                                          'st_uid'))
             r['st_size'] = get_stream(parent).size(os.path.basename(full_path))
             r['st_mtime'] = int(time.time())
+            print("fake file")
         elif self.is_fake_dir(full_path):
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -100,7 +125,7 @@ class Passthrough(Operations):
             r['st_mode'] = r['st_mode'] ^ 0o140000
             r['st_mtime'] = int(time.time())
 
-            print(r)
+            print("fake dir")
         else:
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -111,6 +136,7 @@ class Passthrough(Operations):
     def readdir(self, path, fh):
 
         print("PARAMETERS (method readdir): ")
+
         print(path)
         print(fh)
 
@@ -120,15 +146,10 @@ class Passthrough(Operations):
 
         dirents = ['.', '..']
         if os.path.isdir(full_path):
+            print(os.listdir(full_path))
             dirents.extend(os.listdir(full_path))
         elif self.is_fake_dir(full_path):
-            print("maprcli stream topic list -path -> " + full_path)
-            p = subprocess.Popen(['maprcli', 'stream', 'topic', 'list', '-path', '/' + full_path],
-                                 stdout=subprocess.PIPE)
-            topics = p.communicate()[0].decode("utf-8").split('\n')
-            type(topics)
-            print(topics)
-            dirents.extend(topics)
+            dirents.extend(self.get_topics(full_path))
         else:
             print("mismatch: %s" % full_path)
         for r in dirents:
