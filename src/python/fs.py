@@ -3,12 +3,12 @@
 from __future__ import with_statement
 
 import errno
-import subprocess
-import traceback
-import time
 import os
 import re
+import subprocess
 import sys
+import time
+import traceback
 from functools import lru_cache
 
 from fuse import FUSE, FuseOSError, Operations
@@ -16,6 +16,7 @@ from fuse import FUSE, FuseOSError, Operations
 from stream import Stream
 
 fake_dir = re.compile(".*\\.dir$")
+topic = re.compile(".*\\.dir\\*")
 
 
 @lru_cache(maxsize=32)
@@ -41,14 +42,8 @@ class Passthrough(Operations):
     def is_fake_dir(full_path):
         return re.match(fake_dir, full_path)
 
-    # @staticmethod
-    # def is_stream(full_path):
-    #     p = subprocess.Popen(['maprcli', 'stream', 'info', '-path', full_path], stdout=subprocess.PIPE)
-    #     l = p.communicate()
-    #     l[0].decode('utf-8')
-    #     if 'ERROR (22)' in l[0].decode('utf-8'):
-    #         return False
-    #     return True
+    def is_fake_file(self, full_path):
+        return self.is_fake_dir(os.path.dirname(full_path))
 
     def get_topics(self, full_path):
         topic_names = []
@@ -73,9 +68,6 @@ class Passthrough(Operations):
             del raw_topics_info[0]
             raw_topics_info.remove('')
         return raw_topics_info
-
-    def is_fake_file(self, full_path):
-        return self.is_fake_dir(os.path.dirname(full_path))
 
     # Filesystem methods
     # ==================
@@ -109,14 +101,34 @@ class Passthrough(Operations):
         print("Full path: " + full_path)
 
         if self.is_fake_file(full_path):
-            parent = os.path.dirname(full_path)
-            st = os.lstat(parent)
-            r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
-                                                         'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
-                                                         'st_uid'))
-            r['st_size'] = get_stream(parent).size(os.path.basename(full_path))
-            r['st_mtime'] = int(time.time())
-            print("fake file")
+            p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', os.path.dirname(full_path),
+                                  '-topic', os.path.basename(full_path)], stdout=subprocess.PIPE)
+
+            info = p.communicate()
+            arr = str(info).split('\\n')
+            info = arr[1].strip().split()
+
+            '''
+                - st_mode (protection bits)
+                - st_nlink (number of hard links)
+                - st_uid (user ID of owner)
+                - st_gid (group ID of owner)
+                - st_size (size of file, in bytes)
+                - st_atime (time of most recent access)
+                - st_mtime (time of most recent content modification)
+                - st_ctime (platform dependent; time of most recent metadata change on Unix,
+                            or the time of creation on Windows).
+            '''
+            r = {
+                'st_atime': float(1526573633),
+                'st_ctime': float(1526573633),
+                'st_gid': int(5000),
+                'st_mode': 0o40755,
+                'st_mtime': float(1526573633),
+                'st_nlink': int(0),
+                'st_size': int(info[7]),
+                'st_uid': int(5000)
+            }
         elif self.is_fake_dir(full_path):
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -125,7 +137,6 @@ class Passthrough(Operations):
             r['st_mode'] = r['st_mode'] ^ 0o140000
             r['st_mtime'] = int(time.time())
 
-            print("fake dir")
         else:
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
