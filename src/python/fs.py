@@ -3,16 +3,17 @@
 from __future__ import with_statement
 
 import errno
+import json
 import os
 import re
 import subprocess
 import sys
 import time
 import traceback
+from collections import namedtuple
 from functools import lru_cache
 
 from fuse import FUSE, FuseOSError, Operations
-
 from stream import Stream
 
 fake_dir = re.compile(".*\\.dir$")
@@ -45,29 +46,33 @@ class Passthrough(Operations):
     def is_fake_file(self, full_path):
         return self.is_fake_dir(os.path.dirname(full_path))
 
+    @staticmethod
+    def clean_string(raw_string):
+        raw_string = re.sub('\\\\.', raw_string, '\\$')
+        return re.sub(r"[^A-Za-z0-9{}:,\[\]\"_]+", "", raw_string)[1:]
+
+    @staticmethod
+    def transform_json_to_object(json_str):
+        return json.loads(json_str, object_hook=lambda d: namedtuple('X', d.keys())(*d.values()))
+
     def get_topics(self, full_path):
         topic_names = []
 
-        raw_topics_info = self.get_all_topics_info(full_path)
+        topics_info = self.get_all_topics_info(full_path)
 
-        if 'ERROR' in raw_topics_info:
+        if topics_info.status == 'ERROR':
             return topic_names
 
-        for topic in raw_topics_info:
-            if len(topic) <= 0:
-                continue
-            topic_name = topic.strip().split()[3]
-            topic_names.append(topic_name)
+        for all_topic_info in topics_info.data:
+            topic_names.append(all_topic_info.topic)
 
         return topic_names
 
     def get_all_topics_info(self, full_path):
-        p = subprocess.Popen(['maprcli', 'stream', 'topic', 'list', '-path', full_path], stdout=subprocess.PIPE)
-        raw_topics_info = str(p.communicate()[0], 'ascii').split('\n')
-        if len(raw_topics_info) >= 3:
-            del raw_topics_info[0]
-            raw_topics_info.remove('')
-        return raw_topics_info
+        p = subprocess.Popen(['maprcli', 'stream', 'topic', 'list', '-path', full_path, '-json'],
+                             stdout=subprocess.PIPE)
+        json_str = self.clean_string(str(p.communicate()[0]))
+        return self.transform_json_to_object(json_str)
 
     # Filesystem methods
     # ==================
@@ -91,22 +96,14 @@ class Passthrough(Operations):
         return os.chown(full_path, uid, gid)
 
     def getattr(self, path, fh=None):
-
-        print("PARAMETERS (method getattr): ")
-        print(path)
-        print(fh)
-
         full_path = self._full_path(path)
-
-        print("Full path: " + full_path)
 
         if self.is_fake_file(full_path):
             p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', os.path.dirname(full_path),
-                                  '-topic', os.path.basename(full_path)], stdout=subprocess.PIPE)
+                                  '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
 
-            info = p.communicate()
-            arr = str(info).split('\\n')
-            info = arr[1].strip().split()
+            json_str = self.clean_string(str(p.communicate()[0]))
+            info_obj = self.transform_json_to_object(json_str)
 
             '''
                 - st_mode (protection bits)
@@ -120,14 +117,14 @@ class Passthrough(Operations):
                             or the time of creation on Windows).
             '''
             r = {
-                'st_atime': float(1526573633),
-                'st_ctime': float(1526573633),
-                'st_gid': int(5000),
-                'st_mode': 0o40755,
-                'st_mtime': float(1526573633),
+                'st_atime': float(info_obj.timestamp),
+                'st_ctime': float(info_obj.timestamp),
+                'st_gid': int(5000),  # hardcoded mapr user id
+                'st_mode': 33204,  # hardcoded as file
+                'st_mtime': float(info_obj.timestamp),
                 'st_nlink': int(0),
-                'st_size': int(info[7]),
-                'st_uid': int(5000)
+                'st_size': info_obj.data[0].physicalsize,
+                'st_uid': int(5000)  # hardcoded mapr group id
             }
         elif self.is_fake_dir(full_path):
             st = os.lstat(full_path)
@@ -142,18 +139,11 @@ class Passthrough(Operations):
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                                                          'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
                                                          'st_uid'))
+            print(r)
         return r
 
     def readdir(self, path, fh):
-
-        print("PARAMETERS (method readdir): ")
-
-        print(path)
-        print(fh)
-
         full_path = self._full_path(path)
-
-        print("Full path: " + full_path)
 
         dirents = ['.', '..']
         if os.path.isdir(full_path):
