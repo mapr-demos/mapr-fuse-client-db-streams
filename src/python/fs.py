@@ -16,6 +16,8 @@ from functools import lru_cache
 from fuse import FUSE, FuseOSError, Operations
 from stream import Stream
 
+# from mapr_streams_python import Consumer, KafkaErro
+
 fake_dir = re.compile(".*\\.dir$")
 topic = re.compile(".*\\.dir\\*")
 
@@ -101,10 +103,11 @@ class Passthrough(Operations):
         if self.is_fake_file(full_path):
             p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', os.path.dirname(full_path),
                                   '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
-
             json_str = self.clean_string(str(p.communicate()[0]))
             info_obj = self.transform_json_to_object(json_str)
 
+            if info_obj.status == 'ERROR':
+                os.lstat(path)
             '''
                 - st_mode (protection bits)
                 - st_nlink (number of hard links)
@@ -139,7 +142,6 @@ class Passthrough(Operations):
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                                                          'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
                                                          'st_uid'))
-            print(r)
         return r
 
     def readdir(self, path, fh):
@@ -169,13 +171,22 @@ class Passthrough(Operations):
         return os.mknod(self._full_path(path), mode, dev)
 
     def rmdir(self, path):
-        # print("rmdir %s" % path)
         full_path = self._full_path(path)
+        if self.is_fake_dir(full_path):
+            subprocess.Popen(['maprcli', 'stream', 'delete', '-path', full_path], stdout=subprocess.PIPE)
+            return os.remove(full_path)
         return os.rmdir(full_path)
 
     def mkdir(self, path, mode):
-        # print("mkdir %s" % path)
-        return os.mkdir(self._full_path(path), mode)
+        full_path = self._full_path(path)
+        if self.is_fake_file(full_path):
+            subprocess.Popen(['maprcli', 'stream', 'topic', 'create', '-path', os.path.dirname(full_path),
+                              '-topic', os.path.basename(full_path)], stdout=subprocess.PIPE)
+        if self.is_fake_dir(full_path):
+            subprocess.Popen(['maprcli', 'stream', 'create', '-path', full_path], stdout=subprocess.PIPE)
+            open(full_path, 'w+')
+        else:
+            return os.mkdir(self._full_path(path), mode)
 
     def statfs(self, path):
         # print("statfs %s" % path)
