@@ -8,23 +8,20 @@ import os
 import re
 import subprocess
 import sys
-import time
-import traceback
 from collections import namedtuple
-from functools import lru_cache
-
 from fuse import FUSE, FuseOSError, Operations
-from stream import Stream
 
-# from mapr_streams_python import Consumer, KafkaErro
+from mapr_streams_python import Consumer, KafkaError
 
 fake_dir = re.compile(".*\\.dir$")
 topic = re.compile(".*\\.dir\\*")
 
 
-@lru_cache(maxsize=32)
-def get_stream(path):
-    return Stream(path)
+def get_stream(stream, topic_name):
+    c = Consumer({'group.id': 'mygroup', 'default.topic.config': {'auto.offset.reset': 'earliest'},
+                  'auto.commit.interval.ms': 500, 'message.max.bytes': 4096})
+    c.subscribe([stream + ':' + topic_name])
+    return c
 
 
 class Passthrough(Operations):
@@ -101,42 +98,22 @@ class Passthrough(Operations):
         full_path = self._full_path(path)
 
         if self.is_fake_file(full_path):
-            p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', os.path.dirname(full_path),
-                                  '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
-            json_str = self.clean_string(str(p.communicate()[0]))
-            info_obj = self.transform_json_to_object(json_str)
-
-            if info_obj.status == 'ERROR':
-                os.lstat(path)
-            '''
-                - st_mode (protection bits)
-                - st_nlink (number of hard links)
-                - st_uid (user ID of owner)
-                - st_gid (group ID of owner)
-                - st_size (size of file, in bytes)
-                - st_atime (time of most recent access)
-                - st_mtime (time of most recent content modification)
-                - st_ctime (platform dependent; time of most recent metadata change on Unix,
-                            or the time of creation on Windows).
-            '''
-            r = {
-                'st_atime': float(info_obj.timestamp),
-                'st_ctime': float(info_obj.timestamp),
-                'st_gid': int(5000),  # hardcoded mapr user id
-                'st_mode': 33204,  # hardcoded as file
-                'st_mtime': float(info_obj.timestamp),
-                'st_nlink': int(0),
-                'st_size': info_obj.data[0].physicalsize,
-                'st_uid': int(5000)  # hardcoded mapr group id
-            }
+            st = os.lstat(full_path)
+            r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
+                                                         'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
+                                                         'st_uid'))
+            # p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', os.path.dirname(full_path),
+            #                       '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
+            #
+            # json_str = self.clean_string(str(p.communicate()[0]))
+            # info_obj = self.transform_json_to_object(json_str)
+            r['st_size'] = int(4068)
+            # info_obj.data[0].physicalsize
         elif self.is_fake_dir(full_path):
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                                                          'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
                                                          'st_uid'))
-            r['st_mode'] = r['st_mode'] ^ 0o140000
-            r['st_mtime'] = int(time.time())
-
         else:
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -173,18 +150,20 @@ class Passthrough(Operations):
     def rmdir(self, path):
         full_path = self._full_path(path)
         if self.is_fake_dir(full_path):
-            subprocess.Popen(['maprcli', 'stream', 'delete', '-path', full_path], stdout=subprocess.PIPE)
+            subprocess.Popen(['maprcli', 'stream', 'delete', '-path', '/' + full_path], stdout=subprocess.PIPE)
             return os.remove(full_path)
         return os.rmdir(full_path)
 
     def mkdir(self, path, mode):
         full_path = self._full_path(path)
         if self.is_fake_file(full_path):
-            subprocess.Popen(['maprcli', 'stream', 'topic', 'create', '-path', os.path.dirname(full_path),
+            subprocess.Popen(['maprcli', 'stream', 'topic', 'create', '-path', '/' + os.path.dirname(full_path),
                               '-topic', os.path.basename(full_path)], stdout=subprocess.PIPE)
+            open(full_path, "w+")
+            return None
         if self.is_fake_dir(full_path):
-            subprocess.Popen(['maprcli', 'stream', 'create', '-path', full_path], stdout=subprocess.PIPE)
-            open(full_path, 'w+')
+            subprocess.Popen(['maprcli', 'stream', 'create', '-path', '/' + full_path], stdout=subprocess.PIPE)
+            return os.mkdir(self._full_path(path), mode)
         else:
             return os.mkdir(self._full_path(path), mode)
 
@@ -225,25 +204,10 @@ class Passthrough(Operations):
 
     # File methods
     # ============
-    stream_count = 1000
-    open_streams = dict()
-
-    def open_stream(self, path):
-        try:
-            fd = self.open_streams[path]
-        except KeyError:
-            self.stream_count = self.stream_count + 1
-            self.open_streams[path] = self.stream_count
-            fd = self.stream_count
-        return fd
 
     def open(self, path, flags):
         full_path = self._full_path(path)
-        print("opening from %s, %o" % (full_path, flags))
-        if self.is_fake_file(full_path):
-            return self.open_stream(full_path)
-        else:
-            return os.open(full_path, flags)
+        return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
         print("create  %s" % path)
@@ -253,15 +217,19 @@ class Passthrough(Operations):
     def read(self, path, length, offset, fh):
         full_path = self._full_path(path)
         if self.is_fake_file(full_path):
-            stream = os.path.dirname(full_path)
-            topic = os.path.basename(full_path)
+            c = get_stream('/' + os.path.dirname(full_path), os.path.basename(full_path))
+
+            data = b''
             try:
-                data = get_stream(stream).read_bytes(topic, offset, length)
-            except Exception as e:
-                print('-' * 60)
-                traceback.print_exc(file=sys.stdout)
-                print('-' * 60)
-                data = b''
+                for i in range(10):
+                    msg = c.poll(timeout=2)
+                    if msg is None:
+                        return data
+                    elif not msg.error():
+                        data = data.__add__(msg.value())
+            except Exception:
+                return data
+
             return data
         else:
             os.lseek(fh, offset, os.SEEK_SET)
