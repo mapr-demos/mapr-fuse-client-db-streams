@@ -9,19 +9,19 @@ import re
 import subprocess
 import sys
 from collections import namedtuple
-from fuse import FUSE, FuseOSError, Operations
 
-from mapr_streams_python import Consumer, KafkaError
+from fuse import FUSE, FuseOSError, Operations
+from mapr_streams_python import Consumer
 
 fake_dir = re.compile(".*\\.dir$")
 topic = re.compile(".*\\.dir\\*")
 
 
 def get_stream(stream, topic_name):
-    c = Consumer({'group.id': 'mygroup', 'default.topic.config': {'auto.offset.reset': 'earliest'},
-                  'auto.commit.interval.ms': 500, 'message.max.bytes': 4096})
-    c.subscribe([stream + ':' + topic_name])
-    return c
+    conn = Consumer({'group.id': 'mygroup', 'default.topic.config': {'auto.offset.reset': 'earliest'},
+                     'enable.auto.commit': False, 'message.max.bytes': 4096})
+    conn.subscribe([stream + ':' + topic_name])
+    return conn
 
 
 class Passthrough(Operations):
@@ -68,7 +68,7 @@ class Passthrough(Operations):
         return topic_names
 
     def get_all_topics_info(self, full_path):
-        p = subprocess.Popen(['maprcli', 'stream', 'topic', 'list', '-path', full_path, '-json'],
+        p = subprocess.Popen(['maprcli', 'stream', 'topic', 'list', '-path', '/' + full_path, '-json'],
                              stdout=subprocess.PIPE)
         json_str = self.clean_string(str(p.communicate()[0]))
         return self.transform_json_to_object(json_str)
@@ -102,18 +102,12 @@ class Passthrough(Operations):
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                                                          'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
                                                          'st_uid'))
-            # p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', os.path.dirname(full_path),
-            #                       '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
-            #
-            # json_str = self.clean_string(str(p.communicate()[0]))
-            # info_obj = self.transform_json_to_object(json_str)
-            r['st_size'] = int(4068)
-            # info_obj.data[0].physicalsize
-        elif self.is_fake_dir(full_path):
-            st = os.lstat(full_path)
-            r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
-                                                         'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
-                                                         'st_uid'))
+            p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', '/' + os.path.dirname(full_path),
+                                  '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
+
+            json_str = self.clean_string(str(p.communicate()[0]))
+            info_obj = self.transform_json_to_object(json_str)
+            r['st_size'] = info_obj.data[0].physicalsize
         else:
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -132,6 +126,7 @@ class Passthrough(Operations):
             dirents.extend(self.get_topics(full_path))
         else:
             print("mismatch: %s" % full_path)
+
         for r in dirents:
             yield r
 
@@ -151,7 +146,6 @@ class Passthrough(Operations):
         full_path = self._full_path(path)
         if self.is_fake_dir(full_path):
             subprocess.Popen(['maprcli', 'stream', 'delete', '-path', '/' + full_path], stdout=subprocess.PIPE)
-            return os.remove(full_path)
         return os.rmdir(full_path)
 
     def mkdir(self, path, mode):
@@ -159,8 +153,7 @@ class Passthrough(Operations):
         if self.is_fake_file(full_path):
             subprocess.Popen(['maprcli', 'stream', 'topic', 'create', '-path', '/' + os.path.dirname(full_path),
                               '-topic', os.path.basename(full_path)], stdout=subprocess.PIPE)
-            open(full_path, "w+")
-            return None
+            open(full_path, 'x')
         if self.is_fake_dir(full_path):
             subprocess.Popen(['maprcli', 'stream', 'create', '-path', '/' + full_path], stdout=subprocess.PIPE)
             return os.mkdir(self._full_path(path), mode)
@@ -205,6 +198,18 @@ class Passthrough(Operations):
     # File methods
     # ============
 
+    streams = {}
+
+    def get_stream(self, path):
+        full_path = '/' + self._full_path(path)
+        if full_path in self.streams.keys():
+            return self.streams[full_path]
+        else:
+            connection \
+                = get_stream(os.path.dirname(full_path), os.path.basename(full_path))
+            self.streams[full_path] = connection
+            return connection
+
     def open(self, path, flags):
         full_path = self._full_path(path)
         return os.open(full_path, flags)
@@ -217,20 +222,16 @@ class Passthrough(Operations):
     def read(self, path, length, offset, fh):
         full_path = self._full_path(path)
         if self.is_fake_file(full_path):
-            c = get_stream('/' + os.path.dirname(full_path), os.path.basename(full_path))
-
+            conn = self.get_stream(path)
             data = b''
-            try:
-                for i in range(10):
-                    msg = c.poll(timeout=2)
-                    if msg is None:
-                        return data
-                    elif not msg.error():
-                        data = data.__add__(msg.value())
-            except Exception:
-                return data
-
-            return data
+            while True:
+                msg = conn.poll(timeout=0.2)
+                if msg is None:
+                    if length < len(data):
+                        data = data[len(data) - length + 1:]
+                    return data + b'\n'
+                elif not msg.error():
+                    data += msg.value() + b'\n'
         else:
             os.lseek(fh, offset, os.SEEK_SET)
             return os.read(fh, length)
@@ -248,9 +249,11 @@ class Passthrough(Operations):
         return os.fsync(fh)
 
     def release(self, path, fh):
-        if fh > 1000:
-            full_path = self._full_path(path)
-            del self.open_streams[full_path]
+        full_path = '/' + self._full_path(path)
+        if self.is_fake_file(full_path) or self.is_fake_dir(full_path):
+            conn = self.streams[full_path]
+            conn.close()
+            del self.streams[full_path]
         else:
             return os.close(fh)
 
