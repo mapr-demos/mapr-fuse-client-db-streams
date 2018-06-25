@@ -8,6 +8,8 @@ import os
 import re
 import subprocess
 import sys
+import random
+import string
 from collections import namedtuple
 
 from fuse import FUSE, FuseOSError, Operations
@@ -31,6 +33,9 @@ class Passthrough(Operations):
 
     # Helpers
     # =======
+
+    streams_commit = {}
+    sizes_offsets = {}
 
     def _full_path(self, partial):
         if partial.startswith("/"):
@@ -73,6 +78,35 @@ class Passthrough(Operations):
         json_str = self.clean_string(str(p.communicate()[0]))
         return self.transform_json_to_object(json_str)
 
+    def get_topic_size(self, stream):
+        # stream = '/streams/films.dir:stream'
+        kc = self.get_kc(stream)
+        if stream not in self.sizes_offsets:
+            self.sizes_offsets[stream] = []
+
+        msg = kc.poll(timeout=0.2)
+        while msg is not None and not msg.error():
+            self.sizes_offsets[stream].append((len(msg.value()), msg.offset()))
+            msg = kc.poll(timeout=0.2)
+
+        size = 0
+        for mess in self.sizes_offsets[stream]:
+            size = size + mess[0] + 1
+
+        return size
+
+    def get_kc(self, stream):
+        if stream in self.streams_commit:
+            return self.streams_commit[stream]
+        else:
+            kc = Consumer(
+                {'group.id': ''.join(random.choices(string.ascii_uppercase + string.digits, k=20)),
+                 'default.topic.config': {'auto.offset.reset': 'earliest'},
+                 'message.max.bytes': 4096})
+            kc.subscribe([stream])
+            self.streams_commit[stream] = kc
+            return kc
+
     # Filesystem methods
     # ==================
 
@@ -105,9 +139,10 @@ class Passthrough(Operations):
             p = subprocess.Popen(['maprcli', 'stream', 'topic', 'info', '-path', '/' + os.path.dirname(full_path),
                                   '-topic', os.path.basename(full_path), '-json'], stdout=subprocess.PIPE)
 
-            json_str = self.clean_string(str(p.communicate()[0]))
-            info_obj = self.transform_json_to_object(json_str)
-            r['st_size'] = info_obj.data[0].physicalsize
+            # json_str = self.clean_string(str(p.communicate()[0]))
+            # info_obj = self.transform_json_to_object(json_str)
+            # r['st_size'] = self.get_topic_size(path)
+            r['st_size'] = self.get_topic_size('/' + os.path.dirname(full_path) + ':' + os.path.basename(full_path))
         else:
             st = os.lstat(full_path)
             r = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -222,16 +257,16 @@ class Passthrough(Operations):
     def read(self, path, length, offset, fh):
         full_path = self._full_path(path)
         if self.is_fake_file(full_path):
+
             conn = self.get_stream(path)
             data = b''
             while True:
                 msg = conn.poll(timeout=0.2)
-                if msg is None:
-                    if length < len(data):
-                        data = data[len(data) - length + 1:]
-                    return data + b'\n'
-                elif not msg.error():
+                if len(data) < offset + length and msg is not None and not msg.error():
                     data += msg.value() + b'\n'
+                else:
+                    # os.lseek(fh, len(data), os.SEEK_SET)
+                    return data[offset:length]
         else:
             os.lseek(fh, offset, os.SEEK_SET)
             return os.read(fh, length)
@@ -252,10 +287,10 @@ class Passthrough(Operations):
         full_path = '/' + self._full_path(path)
         if self.is_fake_file(full_path) or self.is_fake_dir(full_path):
             conn = self.streams[full_path]
+            conn.unsubscribe()
             conn.close()
             del self.streams[full_path]
-        else:
-            return os.close(fh)
+        return os.close(fh)
 
     def fsync(self, path, fdatasync, fh):
         return self.flush(path, fh)
