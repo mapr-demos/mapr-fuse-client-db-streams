@@ -7,14 +7,15 @@ import ru.serce.jnrfuse.FuseStubFS;
 import ru.serce.jnrfuse.struct.FileStat;
 import ru.serce.jnrfuse.struct.FuseFileInfo;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import static com.mapr.fuse.Util.getFullPath;
 
 @Slf4j
 public class StreamFuse extends FuseStubFS {
@@ -22,9 +23,9 @@ public class StreamFuse extends FuseStubFS {
     private final static String FAKE_DIR_PATTERN = ".*\\.dir$";
     private final static String FAKE_FILE_PATTERN = ".*\\.dir/.+";
 
-    private final String root;
+    private final Path root;
 
-    private StreamFuse(String root) {
+    private StreamFuse(Path root) {
         this.root = root;
     }
 
@@ -32,7 +33,11 @@ public class StreamFuse extends FuseStubFS {
         if (args.length == 2) {
             String mountPoint = args[0];
             String root = args[1];
-            StreamFuse stub = new StreamFuse(root);
+
+            log.info("Mount point -> {}", mountPoint);
+            log.info("Root folder -> {}", root);
+
+            StreamFuse stub = new StreamFuse(Paths.get(root));
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -41,75 +46,116 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
+    public static Path getFullPath(Path root, String partial) {
+        if (partial.startsWith("/")) {
+            partial = partial.substring(1);
+        }
+        return root.resolve(partial);
+    }
+
     @Override
     public int getattr(final String path, final FileStat stat) {
-        if (isFakeFile(path)) {
+        String fullPath = getFullPath(root, path).toString();
+        log.info("Get attr for -> {}", fullPath);
+        if (isFakeDir(path)) {
+            // Get stream info
+        } else if ((isFakeFile(fullPath))) {
             // Get topic info
         } else {
-            setupFileAttrs(path, stat);
+            if (Files.exists(Paths.get(fullPath))) {
+                setupAttrs(path, stat);
+            }
         }
-        return super.getattr(getFullPath(root, path), stat);
+        return super.getattr(path, stat);
     }
 
     @Override
     public int mkdir(final String path, final long mode) {
-        return super.mkdir(getFullPath(root, path), mode);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("mkdir for -> {}", fullPath);
+        return super.mkdir(fullPath, mode);
     }
 
     @Override
     public int rmdir(final String path) {
-        return super.rmdir(getFullPath(root, path));
+        String fullPath = getFullPath(root, path).toString();
+        log.info("rmdir for -> {}", fullPath);
+        return super.rmdir(fullPath);
     }
 
     @Override
     public int chmod(final String path, final long mode) {
-        return super.chmod(getFullPath(root, path), mode);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("chmod for -> {}", fullPath);
+        return super.chmod(fullPath, mode);
     }
 
     @Override
     public int chown(final String path, final long uid, final long gid) {
-        return super.chown(getFullPath(root, path), uid, gid);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("chown for -> {}", fullPath);
+        return super.chown(fullPath, uid, gid);
     }
 
     @Override
     public int open(final String path, final FuseFileInfo fi) {
-        return super.open(getFullPath(root, path), fi);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("open for -> {}", fullPath);
+        return super.open(fullPath, fi);
     }
 
     @Override
     public int read(final String path, final Pointer buf, final long size, final long offset, final FuseFileInfo fi) {
-        return super.read(getFullPath(root, path), buf, size, offset, fi);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("read for -> {}", fullPath);
+        return super.read(fullPath, buf, size, offset, fi);
     }
 
     @Override
     public int opendir(final String path, final FuseFileInfo fi) {
-        return super.opendir(getFullPath(root, path), fi);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("opendir for -> {}", fullPath);
+        return super.opendir(fullPath, fi);
     }
 
     @Override
     public int readdir(final String path, final Pointer buf, final FuseFillDir filter, final long offset, final FuseFileInfo fi) {
-        return super.readdir(getFullPath(root, path), buf, filter, offset, fi);
+        String fullPath = getFullPath(root, path).toString();
+        log.info("readdir for -> {}", fullPath);
+        File file = new File(fullPath);
+
+        if (file.isDirectory()) {
+            filter.apply(buf, ".", null, 0);
+            filter.apply(buf, "..", null, 0);
+
+            Arrays.stream(Objects.requireNonNull(file.listFiles()))
+                    .map(File::getName)
+                    .forEach(x -> filter.apply(buf, x, null, 0));
+        }
+        return 0;
     }
 
     @Override
     public int access(final String path, final int mask) {
-        return super.access(getFullPath(root, path), mask);
+        String fullPath = getFullPath(root, path).toString();
+        return super.access(fullPath, mask);
     }
 
-    private void setupFileAttrs(String path, FileStat stat) {
-        Path path_ = Paths.get(getFullPath(root, path));
+    private void setupAttrs(String path, FileStat stat) {
+        Path fullPath = getFullPath(root, path);
         try {
-            BasicFileAttributes basicFileAttributes = Files.readAttributes(path_, BasicFileAttributes.class);
+            BasicFileAttributes basicFileAttributes = Files.readAttributes(fullPath, BasicFileAttributes.class);
             stat.st_atim.tv_sec.set(basicFileAttributes.lastAccessTime().to(TimeUnit.SECONDS));
             stat.st_ctim.tv_sec.set(basicFileAttributes.creationTime().to(TimeUnit.SECONDS));
             stat.st_mtim.tv_sec.set(basicFileAttributes.lastModifiedTime().to(TimeUnit.SECONDS));
-            stat.st_gid.set((Number) Files.getAttribute(path_, "unix:gid"));
-            stat.st_mode.set((Number) Files.getAttribute(path_, "unix:mode"));
-            stat.st_nlink.set((Number) Files.getAttribute(path_, "unix:nlink"));
-            stat.st_size.set((Number) Files.getAttribute(path_, "unix:size"));
-            stat.st_uid.set((Number) Files.getAttribute(path_, "unix:uid"));
+            stat.st_gid.set((Number) Files.getAttribute(fullPath, "unix:gid"));
+            stat.st_mode.set((Number) Files.getAttribute(fullPath, "unix:mode"));
+            stat.st_nlink.set((Number) Files.getAttribute(fullPath, "unix:nlink"));
+            stat.st_size.set((Number) Files.getAttribute(fullPath, "unix:size"));
+            stat.st_uid.set((Number) Files.getAttribute(fullPath, "unix:uid"));
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Problems with reading file/dir attributes");
+            throw new RuntimeException(e);
         }
     }
 
