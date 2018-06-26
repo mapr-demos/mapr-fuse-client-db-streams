@@ -46,7 +46,7 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    public static Path getFullPath(Path root, String partial) {
+    private static Path getFullPath(Path root, String partial) {
         if (partial.startsWith("/")) {
             partial = partial.substring(1);
         }
@@ -108,7 +108,14 @@ public class StreamFuse extends FuseStubFS {
     public int read(final String path, final Pointer buf, final long size, final long offset, final FuseFileInfo fi) {
         String fullPath = getFullPath(root, path).toString();
         log.info("read for -> {}", fullPath);
-        return super.read(fullPath, buf, size, offset, fi);
+        try {
+            byte[] allBytes = Files.readAllBytes(Paths.get(fullPath));
+            buf.put(0, allBytes, (int) offset, (int) size);
+        } catch (IOException e) {
+            log.error("Problems with reading file");
+            throw new RuntimeException(e);
+        }
+        return (int) size;
     }
 
     @Override
