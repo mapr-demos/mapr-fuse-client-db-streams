@@ -30,6 +30,7 @@ repositories {
 }
 
 dependencies {
+    compile group: 'io.projectreactor', name: 'reactor-core', version: '3.1.8.RELEASE'
     compile 'com.mapr.streams:mapr-streams:6.0.1-mapr'
     compile 'org.apache.kafka:kafka-clients:1.0.1-mapr'
     compile 'xerces:xercesImpl:2.11.0'
