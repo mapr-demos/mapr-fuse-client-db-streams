@@ -32,6 +32,7 @@ public class KafkaClient {
     private final KafkaConsumer<String, String> kafkaConsumer;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Disposable consumerTask;
+    //put kafka host here
     private final static String KAFKA_HOST = "kafkaHost";
 
     public KafkaClient() {
