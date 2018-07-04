@@ -12,7 +12,6 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -21,7 +20,6 @@ import java.util.stream.Collectors;
 public class TopicReader {
 
     private final Scheduler consumerScheduler = Schedulers.newElastic("KafkaReader-thread");
-    private final LinkedBlockingDeque<Set<String>> subscribeEvents = new LinkedBlockingDeque<>();
     private final KafkaConsumer<String, String> kafkaConsumer;
     private final static String KAFKA_HOST = "kafkaHost";
 
@@ -38,7 +36,7 @@ public class TopicReader {
         kafkaConsumer = new KafkaConsumer<>(consumerProps);
     }
 
-    private List<ConsumerRecord<String, String>> read(String topic, long offset, long amount, long timeout) {
+    public List<ConsumerRecord<String, String>> read(String topic, long offset, long amount, long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         List<ConsumerRecord<String, String>> records = new LinkedList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
@@ -58,7 +56,6 @@ public class TopicReader {
                         continue;
                     }
                     records.addAll(consumerRecords.records(partition));
-                    kafkaConsumer.seek(partition, offset + records.size());
                     if (records.size() >= amount || stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
                         closed.set(true);
                     }
