@@ -8,6 +8,7 @@ import ru.serce.jnrfuse.struct.FileStat;
 import ru.serce.jnrfuse.struct.FuseFileInfo;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,15 +108,33 @@ public class StreamFuse extends FuseStubFS {
     @Override
     public int read(final String path, final Pointer buf, final long size, final long offset, final FuseFileInfo fi) {
         String fullPath = getFullPath(root, path).toString();
-        log.info("read for -> {}", fullPath);
-        try {
-            byte[] allBytes = Files.readAllBytes(Paths.get(fullPath));
-            buf.put(0, allBytes, (int) offset, (int) size);
+        if (isFakeFile(fullPath)) {
+            return 0;
+        } else {
+            byte[] batchOfBytes = new byte[(int) size];
+            int numOfReadBytes = readPartOfFile(fullPath, batchOfBytes, (int) offset, (int) size);
+            buf.put(0, batchOfBytes, 0, numOfReadBytes);
+            return numOfReadBytes;
+        }
+    }
+
+    /**
+     * @param fullPath     path to the file
+     * @param batchOfBytes the buffer into which the data is read.
+     * @param offset       the start offset in the destination array
+     * @param size         the maximum number of bytes read.
+     * @return the total number of bytes read into the buffer
+     */
+    private int readPartOfFile(String fullPath, byte[] batchOfBytes, int offset, int size) {
+        int numOfReadBytes;
+        try (FileInputStream fis = new FileInputStream(fullPath)) {
+            fis.skip(offset);
+            numOfReadBytes = fis.read(batchOfBytes, 0, size);
         } catch (IOException e) {
             log.error("Problems with reading file");
             throw new RuntimeException(e);
         }
-        return (int) size;
+        return numOfReadBytes;
     }
 
     @Override

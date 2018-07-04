@@ -58,11 +58,11 @@ public class TopicDataService {
         topicSizeData.put(topicName, new LinkedList<>());
         kafkaClient.subscribe(singletonList(topicName))
                 .doOnNext(record -> topicSizeData.get(topicName).addLast(record.value().getBytes().length))
-                .subscribeOn(Schedulers.elastic())
                 .doOnError(error -> {
                     log.error("Error while reading topic {}", topicName);
                     topicSizeData.remove(topicName);
                 })
+                .subscribeOn(Schedulers.elastic())
                 .subscribe();
     }
 }
