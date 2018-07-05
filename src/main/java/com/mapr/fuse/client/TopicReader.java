@@ -74,6 +74,7 @@ public class TopicReader {
                 }
             }
         });
+        kafkaConsumer.unsubscribe();
         return records.stream()
                 .limit(amount)
                 .map(record -> record.value().getBytes())
