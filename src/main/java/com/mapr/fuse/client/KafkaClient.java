@@ -83,7 +83,6 @@ public class KafkaClient {
                             messageHandler.consume(topicName, consumerRecord);
                         }
                     }
-                    kafkaConsumer.commitSync();
                 } catch (Exception e) {
                     log.error("Unexpected error: {}", e.getMessage(), e);
                 }
@@ -97,7 +96,6 @@ public class KafkaClient {
         while (!consumerTask.isDisposed()) {
             Thread.sleep(100);
         }
-        kafkaConsumer.commitSync();
         kafkaConsumer.close();
     }
 

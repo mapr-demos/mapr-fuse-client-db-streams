@@ -2,6 +2,7 @@ package com.mapr.fuse.client;
 
 import com.google.common.base.Stopwatch;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -14,7 +15,6 @@ import reactor.core.scheduler.Schedulers;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class TopicReader {
@@ -36,7 +36,17 @@ public class TopicReader {
         kafkaConsumer = new KafkaConsumer<>(consumerProps);
     }
 
-    public List<ConsumerRecord<String, String>> read(String topic, long offset, long amount, long timeout) {
+    /**
+     * Used to read needed amount of messeges from topic. If it is not possible to read (less messages available) timeout
+     * will brake loop
+     *
+     * @param topic   topic to read from
+     * @param offset  initial offset
+     * @param amount  amount of messages to read
+     * @param timeout timeout to brake the loop if it is not possible te read needed amount of messages
+     * @return List of records
+     */
+    public Optional<byte[]> read(String topic, long offset, long amount, long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         List<ConsumerRecord<String, String>> records = new LinkedList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
@@ -66,6 +76,7 @@ public class TopicReader {
         });
         return records.stream()
                 .limit(amount)
-                .collect(Collectors.toList());
+                .map(record -> record.value().getBytes())
+                .reduce(ArrayUtils::addAll);
     }
 }
