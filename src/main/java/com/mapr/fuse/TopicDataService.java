@@ -28,7 +28,7 @@ public class TopicDataService {
         return topicSizeData.get(topicName);
     }
 
-    public Integer numberOfMessagesToRead(String topic, Long startOffset, Long endOffset) {
+    public CoordinatesDto numberOfMessagesToRead(String topic, Long startOffset, Long endOffset) {
         List<Integer> messagesSizes = topicSizeData.get(topic);
         long sum = 0;
         int startElement = 0;
@@ -36,6 +36,9 @@ public class TopicDataService {
             sum += messagesSizes.get(i);
             if (sum >= startOffset) {
                 startElement = i - 1;
+                if (i == 0) {
+                    startElement = 0;
+                }
                 break;
             }
         }
@@ -48,10 +51,10 @@ public class TopicDataService {
                 break;
             }
         }
-        if (startElement == endElement) {
-            return endElement;
-        }
-        return endElement - startElement;
+//        if (startElement == endElement) {
+//            return new CoordinatesDto(startElement, endElement, endElement - startElement);
+//        }
+        return new CoordinatesDto(startElement, endElement, endElement - startElement);
     }
 
     private void startReadingTopic(String topicName) {

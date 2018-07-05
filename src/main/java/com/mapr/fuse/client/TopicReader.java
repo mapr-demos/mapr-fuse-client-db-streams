@@ -9,8 +9,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -19,7 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class TopicReader {
 
-    private final Scheduler consumerScheduler = Schedulers.newElastic("KafkaReader-thread");
     private final KafkaConsumer<String, String> kafkaConsumer;
     private final static String KAFKA_HOST = "kafkaHost";
 
@@ -52,28 +49,27 @@ public class TopicReader {
         Stopwatch stopwatch = Stopwatch.createStarted();
         kafkaConsumer.subscribe(Collections.singletonList(topic));
         TopicPartition partition = new TopicPartition(topic, 0);
-        kafkaConsumer.seek(partition, offset);
-        consumerScheduler.schedule(() -> {
-            while (!closed.get()) {
-                try {
-                    if (kafkaConsumer.subscription().isEmpty()) {
-                        Thread.sleep(100);
-                        continue;
-                    }
-
-                    ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(500);
-                    if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
-                        continue;
-                    }
-                    records.addAll(consumerRecords.records(partition));
-                    if (records.size() >= amount || stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
-                        closed.set(true);
-                    }
-                } catch (Exception e) {
-                    log.error("Unexpected error: {}", e.getMessage(), e);
+        while (!closed.get()) {
+            try {
+                if (kafkaConsumer.subscription().isEmpty()) {
+                    Thread.sleep(100);
+                    continue;
                 }
+
+                kafkaConsumer.seek(partition, offset);
+
+                ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(500);
+                if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
+                    continue;
+                }
+                records.addAll(consumerRecords.records(partition));
+                if (records.size() >= amount || stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
+                    closed.set(true);
+                }
+            } catch (Exception e) {
+                log.error("Unexpected error: {}", e.getMessage(), e);
             }
-        });
+        }
         kafkaConsumer.unsubscribe();
         return records.stream()
                 .limit(amount)

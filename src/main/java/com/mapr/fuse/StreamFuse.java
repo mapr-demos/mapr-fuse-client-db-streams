@@ -1,5 +1,6 @@
 package com.mapr.fuse;
 
+import com.mapr.fuse.client.TopicReader;
 import jnr.ffi.Pointer;
 import lombok.extern.slf4j.Slf4j;
 import ru.serce.jnrfuse.FuseFillDir;
@@ -25,9 +26,13 @@ public class StreamFuse extends FuseStubFS {
     private final static String FAKE_FILE_PATTERN = ".*\\.dir/.+";
 
     private final Path root;
+    private TopicDataService tdService;
+    private TopicReader reader;
 
-    private StreamFuse(Path root) {
+    private StreamFuse(Path root, TopicDataService tdService, TopicReader reader) {
         this.root = root;
+        this.tdService = tdService;
+        this.reader = reader;
     }
 
     public static void main(String[] args) {
@@ -38,7 +43,9 @@ public class StreamFuse extends FuseStubFS {
             log.info("Mount point -> {}", mountPoint);
             log.info("Root folder -> {}", root);
 
-            StreamFuse stub = new StreamFuse(Paths.get(root));
+            TopicDataService topicDataService = new TopicDataService();
+            TopicReader reader = new TopicReader();
+            StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService, reader);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -56,18 +63,28 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int getattr(final String path, final FileStat stat) {
-        String fullPath = getFullPath(root, path).toString();
+        Path fullPath = getFullPath(root, path);
         log.info("Get attr for -> {}", fullPath);
-        if (isFakeDir(path)) {
+        if (isFakeFile(fullPath)) {
+            log.info("Get attr FAKE FILE");
+            int sum = tdService.reqestTopicSizeData(transformToTopicName(fullPath)).stream()
+                    .mapToInt(Integer::intValue)
+                    .sum();
+            setupAttrs(path, stat);
+            stat.st_size.set(sum);
             // Get stream info
-        } else if ((isFakeFile(fullPath))) {
+//        } else if ((isFakeFile(fullPath))) {
             // Get topic info
         } else {
-            if (Files.exists(Paths.get(fullPath))) {
+            if (Files.exists(fullPath)) {
                 setupAttrs(path, stat);
             }
         }
         return super.getattr(path, stat);
+    }
+
+    private String transformToTopicName(Path fullPath) {
+        return "/" + fullPath.getParent().getFileName().toString() + ":" + fullPath.getFileName().toString();
     }
 
     @Override
@@ -107,10 +124,19 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int read(final String path, final Pointer buf, final long size, final long offset, final FuseFileInfo fi) {
-        String fullPath = getFullPath(root, path).toString();
+        Path fullPath = getFullPath(root, path);
+        log.info("read for -> {}", fullPath);
         if (isFakeFile(fullPath)) {
-            return 0;
+            CoordinatesDto coordinatesDto =
+                    tdService.numberOfMessagesToRead(transformToTopicName(fullPath), offset, offset + size);
+            byte[] batchOfBytes =
+                    reader.read(transformToTopicName(fullPath), coordinatesDto.getStartOffset(),
+                            coordinatesDto.getNumberOfMessages(), 2000L).get();
+
+            buf.put(0, batchOfBytes, 0, batchOfBytes.length);
+            return batchOfBytes.length;
         } else {
+            log.info("read NORMAL FILE");
             byte[] batchOfBytes = new byte[(int) size];
             int numOfReadBytes = readPartOfFile(fullPath, batchOfBytes, (int) offset, (int) size);
             buf.put(0, batchOfBytes, 0, numOfReadBytes);
@@ -125,9 +151,9 @@ public class StreamFuse extends FuseStubFS {
      * @param size         the maximum number of bytes read.
      * @return the total number of bytes read into the buffer
      */
-    private int readPartOfFile(String fullPath, byte[] batchOfBytes, int offset, int size) {
+    private int readPartOfFile(Path fullPath, byte[] batchOfBytes, int offset, int size) {
         int numOfReadBytes;
-        try (FileInputStream fis = new FileInputStream(fullPath)) {
+        try (FileInputStream fis = new FileInputStream(fullPath.toFile())) {
             fis.skip(offset);
             numOfReadBytes = fis.read(batchOfBytes, 0, size);
         } catch (IOException e) {
@@ -185,11 +211,11 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    private boolean isFakeDir(String path) {
-        return path.matches(FAKE_DIR_PATTERN);
+    private boolean isFakeDir(Path path) {
+        return path.toString().matches(FAKE_DIR_PATTERN);
     }
 
-    private boolean isFakeFile(String path) {
-        return path.matches(FAKE_FILE_PATTERN);
+    private boolean isFakeFile(Path path) {
+        return path.toString().matches(FAKE_FILE_PATTERN);
     }
 }
