@@ -53,14 +53,18 @@ public class TopicReader {
             try {
                 if (kafkaConsumer.subscription().isEmpty()) {
                     Thread.sleep(100);
-                    continue;
+                    if (stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
+                        closed.set(true);
+                    } else continue;
                 }
 
                 kafkaConsumer.seek(partition, offset);
 
                 ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(500);
                 if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
-                    continue;
+                    if (stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
+                        closed.set(true);
+                    } else continue;
                 }
                 records.addAll(consumerRecords.records(partition));
                 if (records.size() >= amount || stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
