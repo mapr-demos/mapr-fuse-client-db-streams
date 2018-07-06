@@ -1,6 +1,7 @@
-package com.mapr.fuse;
+package com.mapr.fuse.service;
 
 import com.mapr.fuse.client.KafkaClient;
+import com.mapr.fuse.entity.TopicRange;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.scheduler.Schedulers;
 
@@ -28,7 +29,7 @@ public class TopicDataService {
         return topicSizeData.get(topicName);
     }
 
-    public CoordinatesDto numberOfMessagesToRead(String topic, Long startOffset, Long endOffset) {
+    public TopicRange numberOfMessagesToRead(String topic, Long startOffset, Long endOffset) {
         List<Integer> messagesSizes = topicSizeData.get(topic);
         long sum = 0;
         int startElement = 0;
@@ -51,10 +52,7 @@ public class TopicDataService {
                 break;
             }
         }
-//        if (startElement == endElement) {
-//            return new CoordinatesDto(startElement, endElement, endElement - startElement);
-//        }
-        return new CoordinatesDto(startElement, endElement, endElement - startElement);
+        return new TopicRange(startElement, endElement);
     }
 
     private void startReadingTopic(String topicName) {

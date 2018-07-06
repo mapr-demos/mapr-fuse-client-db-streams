@@ -1,6 +1,8 @@
 package com.mapr.fuse;
 
 import com.mapr.fuse.client.TopicReader;
+import com.mapr.fuse.entity.TopicRange;
+import com.mapr.fuse.service.TopicDataService;
 import jnr.ffi.Pointer;
 import lombok.extern.slf4j.Slf4j;
 import ru.serce.jnrfuse.FuseFillDir;
@@ -127,11 +129,11 @@ public class StreamFuse extends FuseStubFS {
         Path fullPath = getFullPath(root, path);
         log.info("read for -> {}", fullPath);
         if (isFakeFile(fullPath)) {
-            CoordinatesDto coordinatesDto =
+            TopicRange topicRange =
                     tdService.numberOfMessagesToRead(transformToTopicName(fullPath), offset, offset + size);
             byte[] batchOfBytes =
-                    reader.read(transformToTopicName(fullPath), coordinatesDto.getStartOffset(),
-                            coordinatesDto.getNumberOfMessages(), 2000L).get();
+                    reader.read(transformToTopicName(fullPath), topicRange.getStartOffset(),
+                            topicRange.getNumberOfMessages(), 2000L).get();
 
             buf.put(0, batchOfBytes, 0, batchOfBytes.length);
             return batchOfBytes.length;

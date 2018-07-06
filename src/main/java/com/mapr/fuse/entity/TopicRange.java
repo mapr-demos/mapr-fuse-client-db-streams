@@ -1,12 +1,15 @@
-package com.mapr.fuse;
+package com.mapr.fuse.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class CoordinatesDto {
+public class TopicRange {
     private Integer startOffset;
     private Integer endOffset;
-    private Integer numberOfMessages;
+
+    public Integer getNumberOfMessages() {
+        return endOffset - startOffset;
+    }
 }
