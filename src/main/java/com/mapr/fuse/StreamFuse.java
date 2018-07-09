@@ -69,7 +69,7 @@ public class StreamFuse extends FuseStubFS {
         log.info("Get attr for -> {}", fullPath);
         if (isFakeFile(fullPath)) {
             log.info("Get attr FAKE FILE");
-            int sum = tdService.reqestTopicSizeData(transformToTopicName(fullPath)).stream()
+            int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath)).stream()
                     .mapToInt(Integer::intValue)
                     .sum();
             setupAttrs(path, stat);
@@ -132,7 +132,7 @@ public class StreamFuse extends FuseStubFS {
             TopicRange topicRange =
                     tdService.numberOfMessagesToRead(transformToTopicName(fullPath), offset, offset + size);
             byte[] batchOfBytes =
-                    reader.read(transformToTopicName(fullPath), topicRange.getStartOffset(),
+                    reader.read(transformToTopicName(fullPath), topicRange.getStartOffset().getTopicOffset(),
                             topicRange.getNumberOfMessages(), 2000L).get();
 
             buf.put(0, batchOfBytes, 0, batchOfBytes.length);

@@ -8,6 +8,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 import java.util.*;
@@ -34,7 +35,7 @@ public class TopicReader {
     }
 
     /**
-     * Used to read needed amount of messeges from topic. If it is not possible to read (less messages available) timeout
+     * Used to read needed amount of messages from topic. If it is not possible to read (less messages available) timeout
      * will brake loop
      *
      * @param topic   topic to read from
@@ -45,6 +46,7 @@ public class TopicReader {
      */
     public Optional<byte[]> read(String topic, long offset, long amount, long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
+        long currentPosition = offset;
         List<ConsumerRecord<String, String>> records = new LinkedList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
         kafkaConsumer.subscribe(Collections.singletonList(topic));
@@ -58,7 +60,7 @@ public class TopicReader {
                     } else continue;
                 }
 
-                kafkaConsumer.seek(partition, offset);
+                kafkaConsumer.seek(partition, currentPosition);
 
                 ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(500);
                 if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
@@ -67,9 +69,12 @@ public class TopicReader {
                     } else continue;
                 }
                 records.addAll(consumerRecords.records(partition));
+                currentPosition += consumerRecords.count();
+
                 if (records.size() >= amount || stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
                     closed.set(true);
                 }
+            } catch (UnknownTopicOrPartitionException ignored) {
             } catch (Exception e) {
                 log.error("Unexpected error: {}", e.getMessage(), e);
             }

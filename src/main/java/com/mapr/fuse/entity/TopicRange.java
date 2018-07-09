@@ -6,10 +6,10 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class TopicRange {
-    private Integer startOffset;
-    private Integer endOffset;
+    private MessageRange startOffset;
+    private MessageRange endOffset;
 
     public Integer getNumberOfMessages() {
-        return endOffset - startOffset;
+        return endOffset.getTopicOffset() - startOffset.getTopicOffset();
     }
 }

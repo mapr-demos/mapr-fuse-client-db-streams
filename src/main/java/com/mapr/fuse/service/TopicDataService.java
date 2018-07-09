@@ -1,6 +1,7 @@
 package com.mapr.fuse.service;
 
 import com.mapr.fuse.client.KafkaClient;
+import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.scheduler.Schedulers;
@@ -22,7 +23,7 @@ public class TopicDataService {
         topicSizeData = new ConcurrentHashMap<>();
     }
 
-    public List<Integer> reqestTopicSizeData(String topicName) {
+    public List<Integer> requestTopicSizeData(String topicName) {
         if (!topicSizeData.containsKey(topicName)) {
             startReadingTopic(topicName);
         }
@@ -31,28 +32,30 @@ public class TopicDataService {
 
     public TopicRange numberOfMessagesToRead(String topic, Long startOffset, Long endOffset) {
         List<Integer> messagesSizes = topicSizeData.get(topic);
-        long sum = 0;
-        int startElement = 0;
-        for (int i = 0; i < messagesSizes.size(); i++) {
+
+        MessageRange startRange =
+                getElemRange(messagesSizes, startOffset);
+
+        MessageRange endRange =
+                getElemRange(messagesSizes, endOffset);
+
+        return new TopicRange(startRange, endRange);
+    }
+
+    private MessageRange getElemRange(List<Integer> messagesSizes, Long endOffset) {
+        int sum = 0;
+        int messOffset = 0;
+        int i = 0;
+        for (; i < messagesSizes.size(); i++) {
             sum += messagesSizes.get(i);
-            if (sum >= startOffset) {
-                startElement = i - 1;
-                if (i == 0) {
-                    startElement = 0;
-                }
-                break;
-            }
-        }
-        int endElement = startElement;
-        for (int i = startElement; i < messagesSizes.size(); i++) {
-            sum += messagesSizes.get(i);
-            endElement = i;
             if (sum >= endOffset) {
-                endElement = i - 1;
                 break;
             }
         }
-        return new TopicRange(startElement, endElement);
+        if (sum > endOffset && endOffset != 0) {
+            messOffset = (int) (sum - endOffset);
+        }
+        return new MessageRange(i, messOffset, messagesSizes.get(i));
     }
 
     private void startReadingTopic(String topicName) {
