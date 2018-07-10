@@ -9,7 +9,14 @@ public class TopicRange {
     private MessageRange startOffset;
     private MessageRange endOffset;
 
+    /**
+     * @return number of messages in the range
+     */
     public Integer getNumberOfMessages() {
-        return endOffset.getTopicOffset() - startOffset.getTopicOffset();
+        int numberOfMessages = endOffset.getTopicOffset() - startOffset.getTopicOffset();
+        if (endOffset.getMessageOffset() > 0) {
+            numberOfMessages++;
+        }
+        return numberOfMessages;
     }
 }

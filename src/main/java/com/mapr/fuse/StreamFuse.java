@@ -1,7 +1,6 @@
 package com.mapr.fuse;
 
 import com.mapr.fuse.client.TopicReader;
-import com.mapr.fuse.entity.TopicRange;
 import com.mapr.fuse.service.TopicDataService;
 import jnr.ffi.Pointer;
 import lombok.extern.slf4j.Slf4j;
@@ -29,12 +28,10 @@ public class StreamFuse extends FuseStubFS {
 
     private final Path root;
     private TopicDataService tdService;
-    private TopicReader reader;
 
-    private StreamFuse(Path root, TopicDataService tdService, TopicReader reader) {
+    private StreamFuse(Path root, TopicDataService tdService) {
         this.root = root;
         this.tdService = tdService;
-        this.reader = reader;
     }
 
     public static void main(String[] args) {
@@ -45,9 +42,9 @@ public class StreamFuse extends FuseStubFS {
             log.info("Mount point -> {}", mountPoint);
             log.info("Root folder -> {}", root);
 
-            TopicDataService topicDataService = new TopicDataService();
             TopicReader reader = new TopicReader();
-            StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService, reader);
+            TopicDataService topicDataService = new TopicDataService(reader);
+            StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -129,14 +126,10 @@ public class StreamFuse extends FuseStubFS {
         Path fullPath = getFullPath(root, path);
         log.info("read for -> {}", fullPath);
         if (isFakeFile(fullPath)) {
-            TopicRange topicRange =
-                    tdService.numberOfMessagesToRead(transformToTopicName(fullPath), offset, offset + size);
-            byte[] batchOfBytes =
-                    reader.read(transformToTopicName(fullPath), topicRange.getStartOffset().getTopicOffset(),
-                            topicRange.getNumberOfMessages(), 2000L).get();
-
-            buf.put(0, batchOfBytes, 0, batchOfBytes.length);
-            return batchOfBytes.length;
+            long amountOfBytes = offset + size;
+            byte[] vr = tdService.readRequiredBytesFromTopic(transformToTopicName(fullPath), offset, amountOfBytes, 2000L);
+            buf.put(0, vr, 0, vr.length);
+            return vr.length;
         } else {
             log.info("read NORMAL FILE");
             byte[] batchOfBytes = new byte[(int) size];
