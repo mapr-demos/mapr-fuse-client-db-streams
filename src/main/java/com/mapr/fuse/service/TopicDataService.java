@@ -44,15 +44,15 @@ public class TopicDataService {
     }
 
     /**
-     * The same as {@link TopicReader#read(String, long, long, long)}
+     * The same as {@link TopicReader#readPartition(String, int, long, long, long)}
      *
      * @return byte array with records
      */
-    public byte[] readRequiredBytesFromTopic(String topic, Long startOffset, Long numberOfBytes, Long timeout) {
+    public byte[] readRequiredBytesFromTopic(String topic, int partitionId, Long startOffset, Long numberOfBytes, Long timeout) {
         TopicRange topicReadRange =
                 calculateReadRange(topic, startOffset, numberOfBytes);
 
-        Optional<byte[]> batchOfBytes = reader.read(topic, topicReadRange.getStartOffset().getTopicOffset(),
+        Optional<byte[]> batchOfBytes = reader.readPartition(topic, partitionId, topicReadRange.getStartOffset().getTopicOffset(),
                 topicReadRange.getNumberOfMessages(), timeout);
 
         return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, topicReadRange.getStartOffset().getOffsetFromStartMessage(),

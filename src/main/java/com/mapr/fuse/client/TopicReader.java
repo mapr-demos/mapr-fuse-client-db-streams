@@ -46,19 +46,20 @@ public class TopicReader {
      * Used to read needed amount of messages from topic. If it is not possible to read (less messages available) timeout
      * will brake loop
      *
-     * @param topic   topic to read from
-     * @param offset  initial offset
-     * @param amount  amount of messages to read
-     * @param timeout timeout to brake the loop if it is not possible te read needed amount of messages
+     * @param topic       topic to read from
+     * @param partitionId partition of topic to read from
+     * @param offset      initial offset
+     * @param amount      amount of messages to read
+     * @param timeout     timeout to brake the loop if it is not possible te read needed amount of messages
      * @return List of records
      */
-    public Optional<byte[]> read(String topic, long offset, long amount, long timeout) {
+    public Optional<byte[]> readPartition(String topic, int partitionId, long offset, long amount, long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
         List<ConsumerRecord<String, String>> records = new LinkedList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
         kafkaConsumer.subscribe(Collections.singletonList(topic));
-        TopicPartition partition = new TopicPartition(topic, 0);
+        TopicPartition partition = new TopicPartition(topic, partitionId);
         while (!closed.get()) {
             try {
                 if (kafkaConsumer.subscription().isEmpty()) {

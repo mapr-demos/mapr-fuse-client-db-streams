@@ -1,6 +1,7 @@
 package com.mapr.fuse;
 
 import com.mapr.fuse.client.TopicReader;
+import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.TopicDataService;
 import jnr.ffi.Pointer;
 import lombok.extern.slf4j.Slf4j;
@@ -23,15 +24,18 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class StreamFuse extends FuseStubFS {
 
-    private final static String FAKE_DIR_PATTERN = ".*\\.dir$";
-    private final static String FAKE_FILE_PATTERN = ".*\\.dir/.+";
+    private final static String STREAM_PATTERN = ".*\\.dir$";
+    private final static String TOPIC_PATTERN = ".*\\.dir/[^/]+$";
+    private final static String PARTITION_PATTERN = ".*\\.dir/[^/]+/.+";
 
     private final Path root;
     private TopicDataService tdService;
+    private AdminTopicService adminService;
 
-    private StreamFuse(Path root, TopicDataService tdService) {
+    private StreamFuse(Path root, TopicDataService tdService, AdminTopicService adminService) {
         this.root = root;
         this.tdService = tdService;
+        this.adminService = adminService;
     }
 
     public static void main(String[] args) {
@@ -44,7 +48,8 @@ public class StreamFuse extends FuseStubFS {
 
             TopicReader reader = new TopicReader();
             TopicDataService topicDataService = new TopicDataService(reader);
-            StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService);
+            AdminTopicService adminService = new AdminTopicService();
+            StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService, adminService);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -62,14 +67,22 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int getattr(final String path, final FileStat stat) {
-        Path fullPath = getFullPath(root, path);
+            Path fullPath = getFullPath(root, path);
         log.info("Get attr for -> {}", fullPath);
-        if (isFakeFile(fullPath)) {
-            log.info("Get attr FAKE FILE");
+
+        if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
             int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath)).stream()
                     .mapToInt(Integer::intValue)
                     .sum();
-            setupAttrs(path, stat);
+            setupAttrs(fullPath.getParent().getFileName().toString(), stat);
+            stat.st_size.set(sum);
+        } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
+            int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath.getParent())).stream()
+                    .mapToInt(Integer::intValue)
+                    .sum();
+            setupAttrs(fullPath.getParent().getParent().getFileName().toString(), stat);
+            stat.st_mode.set(33204);
+            stat.st_nlink.set(1);
             stat.st_size.set(sum);
         } else {
             if (Files.exists(fullPath)) {
@@ -122,9 +135,10 @@ public class StreamFuse extends FuseStubFS {
     public int read(final String path, final Pointer buf, final long size, final long offset, final FuseFileInfo fi) {
         Path fullPath = getFullPath(root, path);
         log.info("read for -> {}", fullPath);
-        if (isFakeFile(fullPath)) {
+        if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
             long amountOfBytes = offset + size;
-            byte[] vr = tdService.readRequiredBytesFromTopic(transformToTopicName(fullPath), offset, amountOfBytes, 2000L);
+            byte[] vr = tdService.readRequiredBytesFromTopic(transformToTopicName(fullPath.getParent()),
+                    getPartitionId(fullPath), offset, amountOfBytes, 2000L);
             buf.put(0, vr, 0, vr.length);
             return vr.length;
         } else {
@@ -134,6 +148,10 @@ public class StreamFuse extends FuseStubFS {
             buf.put(0, batchOfBytes, 0, numOfReadBytes);
             return numOfReadBytes;
         }
+    }
+
+    private int getPartitionId(Path fullPath) {
+        return Integer.parseInt(fullPath.getFileName().toString());
     }
 
     /**
@@ -164,10 +182,20 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int readdir(final String path, final Pointer buf, final FuseFillDir filter, final long offset, final FuseFileInfo fi) {
-        String fullPath = getFullPath(root, path).toString();
+        Path fullPath = getFullPath(root, path);
         log.info("readdir for -> {}", fullPath);
-        File file = new File(fullPath);
 
+        if (isMatchPattern(fullPath, STREAM_PATTERN)) {
+            adminService.getTopicNames("/" + fullPath.getFileName().toString())
+                    .forEach(x -> filter.apply(buf, x, null, 0));
+            return 0;
+        } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
+            adminService.getTopicPartitions(transformToTopicName(fullPath))
+                    .forEach(x -> filter.apply(buf, x.partition() + "", null, 0));
+            return 0;
+        }
+
+        File file = new File(fullPath.toString());
         if (file.isDirectory()) {
             filter.apply(buf, ".", null, 0);
             filter.apply(buf, "..", null, 0);
@@ -203,11 +231,7 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    private boolean isFakeDir(Path path) {
-        return path.toString().matches(FAKE_DIR_PATTERN);
-    }
-
-    private boolean isFakeFile(Path path) {
-        return path.toString().matches(FAKE_FILE_PATTERN);
+    private boolean isMatchPattern(Path path, String pattern) {
+        return path.toString().matches(pattern);
     }
 }
