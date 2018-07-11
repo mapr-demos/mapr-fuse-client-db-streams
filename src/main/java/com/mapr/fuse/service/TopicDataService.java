@@ -18,6 +18,8 @@ import static java.util.Collections.singletonList;
 @Slf4j
 public class TopicDataService {
 
+    public static final String MESSAGE_PATTERN = "START_MESS_SIZE=%s %s END_MESS\n";
+
     private KafkaClient kafkaClient;
     private TopicReader reader;
     private ConcurrentHashMap<String, LinkedList<Integer>> topicSizeData;
@@ -98,7 +100,7 @@ public class TopicDataService {
     private void startReadingTopic(String topicName) {
         topicSizeData.put(topicName, new LinkedList<>());
         kafkaClient.subscribe(singletonList(topicName))
-                .doOnNext(record -> topicSizeData.get(topicName).addLast(record.value().getBytes().length))
+                .doOnNext(record -> topicSizeData.get(topicName).addLast((String.format(MESSAGE_PATTERN, record.value().getBytes().length, record.value()).getBytes().length)))
                 .doOnError(error -> {
                     log.error("Error while reading topic {}", topicName);
                     topicSizeData.remove(topicName);

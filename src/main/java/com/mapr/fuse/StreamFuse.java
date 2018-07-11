@@ -71,9 +71,6 @@ public class StreamFuse extends FuseStubFS {
                     .sum();
             setupAttrs(path, stat);
             stat.st_size.set(sum);
-            // Get stream info
-//        } else if ((isFakeFile(fullPath))) {
-            // Get topic info
         } else {
             if (Files.exists(fullPath)) {
                 setupAttrs(path, stat);

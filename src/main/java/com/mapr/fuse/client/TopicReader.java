@@ -11,9 +11,17 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static com.mapr.fuse.service.TopicDataService.MESSAGE_PATTERN;
 
 @Slf4j
 public class TopicReader {
@@ -82,7 +90,7 @@ public class TopicReader {
         kafkaConsumer.unsubscribe();
         return records.stream()
                 .limit(amount)
-                .map(record -> record.value().getBytes())
+                .map(record -> String.format(MESSAGE_PATTERN, record.value().getBytes().length, record.value()).getBytes())
                 .reduce(ArrayUtils::addAll);
     }
 }
