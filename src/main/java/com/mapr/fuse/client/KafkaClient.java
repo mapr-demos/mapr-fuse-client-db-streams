@@ -7,6 +7,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -35,7 +36,7 @@ import static org.apache.commons.collections.CollectionUtils.isNotEmpty;
 public class KafkaClient {
     private final Map<UUID, MessageHandler> messageHandlers = new ConcurrentHashMap<>();
     private final Scheduler consumerScheduler = Schedulers.newSingle("KafkaConsumer-thread");
-    private final LinkedBlockingDeque<Set<String>> subscribeEvents = new LinkedBlockingDeque<>();
+    private final LinkedBlockingDeque<Set<TopicPartition>> subscribeEvents = new LinkedBlockingDeque<>();
     private final KafkaConsumer<String, String> kafkaConsumer;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Disposable consumerTask;
@@ -59,22 +60,22 @@ public class KafkaClient {
         return consumerScheduler.schedule(() -> {
             while (!closed.get()) {
                 try {
-                    List<Set<String>> subEvents = new ArrayList<>();
+                    List<Set<TopicPartition>> subEvents = new ArrayList<>();
                     if (subscribeEvents.drainTo(subEvents) > 0) {
-                        Set<String> topics = subEvents.stream()
+                        Set<TopicPartition> topicPartitions = subEvents.stream()
                                 .flatMap(Collection::stream)
                                 .collect(toSet());
-                        if (isNotEmpty(topics)) {
-                            if (topics.size() > 10) {
-                                log.debug("Subscribing to {} topics", topics.size());
+                        if (isNotEmpty(topicPartitions)) {
+                            if (topicPartitions.size() > 10) {
+                                log.debug("Subscribing to {} topicPartitions", topicPartitions.size());
                             } else {
-                                log.debug("Subscribing to topics {}", topics);
+                                log.debug("Subscribing to topicPartitions {}", topicPartitions);
                             }
-                            kafkaConsumer.subscribe(topics);
+                            kafkaConsumer.assign(topicPartitions);
                         }
                     }
 
-                    if (kafkaConsumer.subscription().isEmpty()) {
+                    if (kafkaConsumer.assignment().isEmpty()) {
                         Thread.sleep(100);
                         continue;
                     }
@@ -83,11 +84,10 @@ public class KafkaClient {
                     if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
                         continue;
                     }
-
                     for (ConsumerRecord<String, String> consumerRecord : consumerRecords) {
-                        String topicName = consumerRecord.topic();
+                        Set<TopicPartition> partitions = consumerRecords.partitions();
                         for (MessageHandler messageHandler : messageHandlers.values()) {
-                            messageHandler.consume(topicName, consumerRecord);
+                            partitions.forEach(x -> messageHandler.consume(x, consumerRecord));
                         }
                     }
                 } catch (Exception e) {
@@ -106,10 +106,10 @@ public class KafkaClient {
         kafkaConsumer.close();
     }
 
-    public Flux<ConsumerRecord<String, String>> subscribe(Collection<String> topicNames) {
+    public Flux<ConsumerRecord<String, String>> subscribe(Collection<TopicPartition> topicPartitions) {
         return Flux.create(sink -> {
             UUID handlerId = UUID.randomUUID();
-            MessageHandler messageHandler = MessageHandler.of(topicNames, sink::next);
+            MessageHandler messageHandler = MessageHandler.of(topicPartitions, sink::next);
             putMessageHandler(handlerId, messageHandler);
             sink.onDispose(() -> removeMessageHandler(handlerId));
         });
@@ -118,71 +118,71 @@ public class KafkaClient {
     @SneakyThrows
     private void putMessageHandler(UUID handlerId, MessageHandler messageHandler) {
         messageHandlers.put(handlerId, messageHandler);
-        subscribeEvents.putLast(getCurrentlySubscribedTopics());
+        subscribeEvents.putLast(getCurrentlySubscribedTopicPartitions());
     }
 
     @SneakyThrows
     private void removeMessageHandler(UUID handlerId) {
         if (messageHandlers.remove(handlerId) != null) {
-            subscribeEvents.putLast(getCurrentlySubscribedTopics());
+            subscribeEvents.putLast(getCurrentlySubscribedTopicPartitions());
         }
     }
 
-    private Set<String> getCurrentlySubscribedTopics() {
+    private Set<TopicPartition> getCurrentlySubscribedTopicPartitions() {
         return messageHandlers.values()
                 .stream()
-                .flatMap(MessageHandler::getTopics)
+                .flatMap(MessageHandler::getTopicPartitions)
                 .collect(toSet());
     }
 
     private interface MessageHandler {
-        static MessageHandler of(Collection<String> topics, Consumer<ConsumerRecord<String, String>> messageConsumer) {
-            if (topics.size() != 1) {
-                return new MultipleTopicsMessageHandler(newHashSet(topics), messageConsumer);
+        static MessageHandler of(Collection<TopicPartition> topicPartitions, Consumer<ConsumerRecord<String, String>> messageConsumer) {
+            if (topicPartitions.size() != 1) {
+                return new MultipleTopicsMessageHandler(newHashSet(topicPartitions), messageConsumer);
             }
 
-            String topic = topics.iterator().next();
-            return new SingleTopicMessageHandler(topic, messageConsumer);
+            TopicPartition topicPartition = topicPartitions.iterator().next();
+            return new SingleTopicMessageHandler(topicPartition, messageConsumer);
         }
 
-        void consume(String topic, ConsumerRecord<String, String> message);
+        void consume(TopicPartition topicPartition, ConsumerRecord<String, String> message);
 
-        Stream<String> getTopics();
+        Stream<TopicPartition> getTopicPartitions();
     }
 
     @RequiredArgsConstructor
     private static class SingleTopicMessageHandler implements MessageHandler {
-        private final String subscribedTopic;
+        private final TopicPartition subscribedTopicPartition;
         private final Consumer<ConsumerRecord<String, String>> messageConsumer;
 
         @Override
-        public void consume(String topic, ConsumerRecord<String, String> message) {
-            if (subscribedTopic.equals(topic)) {
+        public void consume(TopicPartition topicPartition, ConsumerRecord<String, String> message) {
+            if (subscribedTopicPartition.equals(topicPartition)) {
                 messageConsumer.accept(message);
             }
         }
 
         @Override
-        public Stream<String> getTopics() {
-            return Stream.of(subscribedTopic);
+        public Stream<TopicPartition> getTopicPartitions() {
+            return Stream.of(subscribedTopicPartition);
         }
     }
 
     @RequiredArgsConstructor
     private static class MultipleTopicsMessageHandler implements MessageHandler {
-        private final Set<String> subscribedTopics;
+        private final Set<TopicPartition> subscribedTopicPartitions;
         private final Consumer<ConsumerRecord<String, String>> messageConsumer;
 
         @Override
-        public void consume(String topic, ConsumerRecord<String, String> message) {
-            if (subscribedTopics.contains(topic)) {
+        public void consume(TopicPartition topicPartition, ConsumerRecord<String, String> message) {
+            if (subscribedTopicPartitions.contains(topicPartition)) {
                 messageConsumer.accept(message);
             }
         }
 
         @Override
-        public Stream<String> getTopics() {
-            return subscribedTopics.stream();
+        public Stream<TopicPartition> getTopicPartitions() {
+            return subscribedTopicPartitions.stream();
         }
     }
 }

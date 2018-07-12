@@ -5,6 +5,7 @@ import com.mapr.fuse.client.TopicReader;
 import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.common.TopicPartition;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Arrays;
@@ -22,7 +23,7 @@ public class TopicDataService {
 
     private KafkaClient kafkaClient;
     private TopicReader reader;
-    private ConcurrentHashMap<String, LinkedList<Integer>> topicSizeData;
+    private ConcurrentHashMap<TopicPartition, LinkedList<Integer>> topicSizeData;
 
     public TopicDataService(final TopicReader reader) {
         this.reader = reader;
@@ -36,23 +37,24 @@ public class TopicDataService {
      * @param topicName topic to track
      * @return list of sizes of messages
      */
-    public List<Integer> requestTopicSizeData(String topicName) {
-        if (!topicSizeData.containsKey(topicName)) {
-            startReadingTopic(topicName);
+    public List<Integer> requestTopicSizeData(String topicName, Integer partitionId) {
+        TopicPartition partition = new TopicPartition(topicName, partitionId);
+        if (!topicSizeData.containsKey(partition)) {
+            startReadingTopic(partition);
         }
-        return topicSizeData.get(topicName);
+        return topicSizeData.get(partition);
     }
 
     /**
-     * The same as {@link TopicReader#readPartition(String, int, long, long, long)}
+     * The same as {@link TopicReader#readPartition(TopicPartition, long, long, long)}
      *
      * @return byte array with records
      */
-    public byte[] readRequiredBytesFromTopic(String topic, int partitionId, Long startOffset, Long numberOfBytes, Long timeout) {
+    public byte[] readRequiredBytesFromTopicPartition(TopicPartition partition, Long startOffset, Long numberOfBytes, Long timeout) {
         TopicRange topicReadRange =
-                calculateReadRange(topic, startOffset, numberOfBytes);
+                calculateReadRange(partition, startOffset, numberOfBytes);
 
-        Optional<byte[]> batchOfBytes = reader.readPartition(topic, partitionId, topicReadRange.getStartOffset().getTopicOffset(),
+        Optional<byte[]> batchOfBytes = reader.readPartition(partition, topicReadRange.getStartOffset().getTopicOffset(),
                 topicReadRange.getNumberOfMessages(), timeout);
 
         return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, topicReadRange.getStartOffset().getOffsetFromStartMessage(),
@@ -63,8 +65,8 @@ public class TopicDataService {
     /**
      * Calculates read range based on offset and number of needed bytes
      */
-    private TopicRange calculateReadRange(String topic, Long startOffset, Long endOffset) {
-        List<Integer> messagesSizes = topicSizeData.get(topic);
+    private TopicRange calculateReadRange(TopicPartition partition, Long startOffset, Long endOffset) {
+        List<Integer> messagesSizes = topicSizeData.get(partition);
 
         MessageRange startRange =
                 calculateMessageRange(messagesSizes, startOffset);
@@ -97,13 +99,13 @@ public class TopicDataService {
         return new MessageRange(amountMessages, messOffset, messagesSizes.get(i));
     }
 
-    private void startReadingTopic(String topicName) {
-        topicSizeData.put(topicName, new LinkedList<>());
-        kafkaClient.subscribe(singletonList(topicName))
-                .doOnNext(record -> topicSizeData.get(topicName).addLast((String.format(MESSAGE_PATTERN, record.value().getBytes().length, record.value()).getBytes().length)))
+    private void startReadingTopic(TopicPartition partition) {
+        topicSizeData.put(partition, new LinkedList<>());
+        kafkaClient.subscribe(singletonList(partition))
+                .doOnNext(record -> topicSizeData.get(partition).addLast((String.format(MESSAGE_PATTERN, record.value().getBytes().length, record.value()).getBytes().length)))
                 .doOnError(error -> {
-                    log.error("Error while reading topic {}", topicName);
-                    topicSizeData.remove(topicName);
+                    log.error("Error while reading topic {}", partition);
+                    topicSizeData.remove(partition);
                 })
                 .subscribeOn(Schedulers.elastic())
                 .subscribe();

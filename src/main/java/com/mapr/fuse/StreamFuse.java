@@ -5,6 +5,7 @@ import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.TopicDataService;
 import jnr.ffi.Pointer;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.common.TopicPartition;
 import ru.serce.jnrfuse.FuseFillDir;
 import ru.serce.jnrfuse.FuseStubFS;
 import ru.serce.jnrfuse.struct.FileStat;
@@ -21,12 +22,16 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static ru.serce.jnrfuse.struct.FileStat.S_IFDIR;
+import static ru.serce.jnrfuse.struct.FileStat.S_IFREG;
+import static ru.serce.jnrfuse.struct.FileStat.S_IRUSR;
+
 @Slf4j
 public class StreamFuse extends FuseStubFS {
 
-    private final static String STREAM_PATTERN = ".*\\.dir$";
-    private final static String TOPIC_PATTERN = ".*\\.dir/[^/]+$";
-    private final static String PARTITION_PATTERN = ".*\\.dir/[^/]+/.+";
+    private final static String STREAM_PATTERN = ".*\\.st$";
+    private final static String TOPIC_PATTERN = ".*\\.st/[^/]+$";
+    private final static String PARTITION_PATTERN = ".*\\.st/[^/]+/.+";
 
     private final Path root;
     private TopicDataService tdService;
@@ -67,21 +72,19 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int getattr(final String path, final FileStat stat) {
-            Path fullPath = getFullPath(root, path);
+        Path fullPath = getFullPath(root, path);
         log.info("Get attr for -> {}", fullPath);
 
         if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
-            int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath)).stream()
-                    .mapToInt(Integer::intValue)
-                    .sum();
             setupAttrs(fullPath.getParent().getFileName().toString(), stat);
-            stat.st_size.set(sum);
+            stat.st_mode.set(S_IFDIR + S_IRUSR);
         } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
-            int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath.getParent())).stream()
+            int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath.getParent()),
+                    Integer.parseInt(fullPath.getFileName().toString())).stream()
                     .mapToInt(Integer::intValue)
                     .sum();
             setupAttrs(fullPath.getParent().getParent().getFileName().toString(), stat);
-            stat.st_mode.set(33204);
+            stat.st_mode.set(S_IFREG + S_IRUSR);
             stat.st_nlink.set(1);
             stat.st_size.set(sum);
         } else {
@@ -137,8 +140,8 @@ public class StreamFuse extends FuseStubFS {
         log.info("read for -> {}", fullPath);
         if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
             long amountOfBytes = offset + size;
-            byte[] vr = tdService.readRequiredBytesFromTopic(transformToTopicName(fullPath.getParent()),
-                    getPartitionId(fullPath), offset, amountOfBytes, 2000L);
+            TopicPartition partition = new TopicPartition(transformToTopicName(fullPath.getParent()), getPartitionId(fullPath));
+            byte[] vr = tdService.readRequiredBytesFromTopicPartition(partition, offset, amountOfBytes, 2000L);
             buf.put(0, vr, 0, vr.length);
             return vr.length;
         } else {
