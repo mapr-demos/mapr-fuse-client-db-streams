@@ -6,15 +6,12 @@ import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static java.util.Collections.singletonList;
 
 @Slf4j
 public class TopicDataService {
@@ -39,10 +36,17 @@ public class TopicDataService {
      */
     public List<Integer> requestTopicSizeData(String topicName, Integer partitionId) {
         TopicPartition partition = new TopicPartition(topicName, partitionId);
-        if (!topicSizeData.containsKey(partition)) {
-            startReadingTopic(partition);
-        }
+        updatePartitionSize(partition);
         return topicSizeData.get(partition);
+    }
+
+    private void updatePartitionSize(TopicPartition partition) {
+        if (!topicSizeData.containsKey(partition)) {
+            topicSizeData.put(partition, new LinkedList<>());
+        }
+        kafkaClient.readPartition(partition, topicSizeData.get(partition).size(), 200L)
+                .forEach(record -> topicSizeData.get(partition).addLast((String.format(MESSAGE_PATTERN,
+                        record.value().getBytes().length, record.value()).getBytes().length)));
     }
 
     /**
@@ -97,17 +101,5 @@ public class TopicDataService {
             messOffset = (int) (sum - endOffset);
         }
         return new MessageRange(amountMessages, messOffset, messagesSizes.get(i));
-    }
-
-    private void startReadingTopic(TopicPartition partition) {
-        topicSizeData.put(partition, new LinkedList<>());
-        kafkaClient.subscribe(singletonList(partition))
-                .doOnNext(record -> topicSizeData.get(partition).addLast((String.format(MESSAGE_PATTERN, record.value().getBytes().length, record.value()).getBytes().length)))
-                .doOnError(error -> {
-                    log.error("Error while reading topic {}", partition);
-                    topicSizeData.remove(partition);
-                })
-                .subscribeOn(Schedulers.elastic())
-                .subscribe();
     }
 }
