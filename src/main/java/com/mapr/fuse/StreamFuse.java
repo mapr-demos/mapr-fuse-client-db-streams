@@ -4,8 +4,10 @@ import com.mapr.fuse.client.TopicReader;
 import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.TopicDataService;
 import jnr.ffi.Pointer;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
+import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
 import ru.serce.jnrfuse.FuseStubFS;
 import ru.serce.jnrfuse.struct.FileStat;
@@ -32,6 +34,8 @@ public class StreamFuse extends FuseStubFS {
     private final static String STREAM_PATTERN = ".*\\.st$";
     private final static String TOPIC_PATTERN = ".*\\.st/[^/]+$";
     private final static String PARTITION_PATTERN = ".*\\.st/[^/]+/.+";
+
+    private final static String TOPIC_NAME_PATTERN = "/%s:%s";
 
     private final Path root;
     private TopicDataService tdService;
@@ -72,45 +76,86 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int getattr(final String path, final FileStat stat) {
+        int res = 0;
         Path fullPath = getFullPath(root, path);
         log.info("Get attr for -> {}", fullPath);
 
-        if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
+        if (isMatchPattern(fullPath, TOPIC_PATTERN) && isTopicExist(fullPath)) {
             setupAttrs(fullPath.getParent().getFileName().toString(), stat);
             stat.st_mode.set(S_IFDIR + S_IRUSR);
         } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
-            int sum = tdService.requestTopicSizeData(transformToTopicName(fullPath.getParent()),
-                    Integer.parseInt(fullPath.getFileName().toString())).stream()
-                    .mapToInt(Integer::intValue)
-                    .sum();
             setupAttrs(fullPath.getParent().getParent().getFileName().toString(), stat);
             stat.st_mode.set(S_IFREG + S_IRUSR);
             stat.st_nlink.set(1);
-            stat.st_size.set(sum);
+            stat.st_size.set(getPartitionSize(fullPath));
         } else {
             if (Files.exists(fullPath)) {
                 setupAttrs(path, stat);
+            } else {
+                res = -ErrorCodes.ENOENT();
             }
         }
-        return super.getattr(path, stat);
+        return res;
+    }
+
+    private int getPartitionSize(Path fullPath) {
+        return tdService.requestTopicSizeData(transformToTopicName(fullPath.getParent()),
+                getPartitionId(fullPath)).stream()
+                .mapToInt(Integer::intValue)
+                .sum();
+    }
+
+    private boolean isTopicExist(Path fullPath) {
+        return adminService.getTopicNames(getStreamName(fullPath)).contains(getTopicName(fullPath));
+    }
+
+    private String getTopicName(Path fullPath) {
+        return fullPath.getFileName().toString();
     }
 
     private String transformToTopicName(Path fullPath) {
-        return "/" + fullPath.getParent().getFileName().toString() + ":" + fullPath.getFileName().toString();
+        return String.format(TOPIC_NAME_PATTERN,
+                fullPath.getParent().getFileName().toString(),
+                fullPath.getFileName().toString());
     }
 
     @Override
+    @SneakyThrows
     public int mkdir(final String path, final long mode) {
-        String fullPath = getFullPath(root, path).toString();
+        Path fullPath = getFullPath(root, path);
         log.info("mkdir for -> {}", fullPath);
-        return super.mkdir(fullPath, mode);
+        if (isMatchPattern(fullPath, STREAM_PATTERN)) {
+            Files.createDirectory(fullPath);
+            adminService.createStream(path);
+            return 0;
+        } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
+            adminService.createTopic(getStreamName(fullPath), fullPath.getFileName().toString());
+            return 0;
+        } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
+            return -1;
+        }
+        Files.createDirectory(fullPath);
+        return super.mkdir(fullPath.toString(), mode);
+    }
+
+    private String getStreamName(Path fullPath) {
+        return String.format("/%s", fullPath.getParent().getFileName().toString());
     }
 
     @Override
+    @SneakyThrows
     public int rmdir(final String path) {
-        String fullPath = getFullPath(root, path).toString();
+        Path fullPath = getFullPath(root, path);
         log.info("rmdir for -> {}", fullPath);
-        return super.rmdir(fullPath);
+        if (isMatchPattern(fullPath, STREAM_PATTERN)) {
+            Files.deleteIfExists(fullPath);
+            adminService.removeStream("/" + fullPath.getFileName().toString());
+        } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
+            adminService.removeTopic(getStreamName(fullPath),
+                    fullPath.getFileName().toString());
+        }
+        Files.deleteIfExists(fullPath);
+        return 0;
     }
 
     @Override
