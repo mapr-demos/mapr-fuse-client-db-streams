@@ -6,6 +6,7 @@ import com.mapr.fuse.service.TopicDataService;
 import jnr.ffi.Pointer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.TopicPartition;
 import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
@@ -57,7 +58,7 @@ public class StreamFuse extends FuseStubFS {
 
             TopicReader reader = new TopicReader();
             TopicDataService topicDataService = new TopicDataService(reader);
-            AdminTopicService adminService = new AdminTopicService();
+            AdminTopicService adminService = new AdminTopicService(new Configuration());
             StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService, adminService);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
@@ -81,10 +82,11 @@ public class StreamFuse extends FuseStubFS {
         log.info("Get attr for -> {}", fullPath);
 
         if (isMatchPattern(fullPath, TOPIC_PATTERN) && isTopicExist(fullPath)) {
-            setupAttrs(fullPath.getParent().getFileName().toString(), stat);
+            setupAttrs(getStreamName(fullPath.getParent()), stat);
             stat.st_mode.set(S_IFDIR + S_IRUSR);
-        } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
-            setupAttrs(fullPath.getParent().getParent().getFileName().toString(), stat);
+        } else if (isMatchPattern(fullPath, PARTITION_PATTERN) &&
+                isPartitionExist(fullPath.getParent(), Integer.parseInt(fullPath.getFileName().toString()))) {
+            setupAttrs(getStreamName(fullPath.getParent().getParent()), stat);
             stat.st_mode.set(S_IFREG + S_IRUSR);
             stat.st_nlink.set(1);
             stat.st_size.set(getPartitionSize(fullPath));
@@ -105,8 +107,12 @@ public class StreamFuse extends FuseStubFS {
                 .sum();
     }
 
+    private boolean isPartitionExist(Path path, Integer partitionId) {
+        return adminService.getTopicPartitions(getStreamName(path.getParent()), getTopicName(path)) > partitionId;
+    }
+
     private boolean isTopicExist(Path fullPath) {
-        return adminService.getTopicNames(getStreamName(fullPath)).contains(getTopicName(fullPath));
+        return adminService.getTopicNames(getStreamName(fullPath.getParent())).contains(getTopicName(fullPath));
     }
 
     private String getTopicName(Path fullPath) {
@@ -127,19 +133,18 @@ public class StreamFuse extends FuseStubFS {
         if (isMatchPattern(fullPath, STREAM_PATTERN)) {
             Files.createDirectory(fullPath);
             adminService.createStream(path);
-            return 0;
         } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
-            adminService.createTopic(getStreamName(fullPath), fullPath.getFileName().toString());
-            return 0;
+            adminService.createTopic(getStreamName(fullPath.getParent()), fullPath.getFileName().toString());
         } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
             return -1;
+        } else {
+            Files.createDirectory(fullPath);
         }
-        Files.createDirectory(fullPath);
-        return super.mkdir(fullPath.toString(), mode);
+        return 0;
     }
 
     private String getStreamName(Path fullPath) {
-        return String.format("/%s", fullPath.getParent().getFileName().toString());
+        return String.format("/%s", fullPath.getFileName().toString());
     }
 
     @Override
@@ -149,9 +154,9 @@ public class StreamFuse extends FuseStubFS {
         log.info("rmdir for -> {}", fullPath);
         if (isMatchPattern(fullPath, STREAM_PATTERN)) {
             Files.deleteIfExists(fullPath);
-            adminService.removeStream("/" + fullPath.getFileName().toString());
+            adminService.removeStream(getStreamName(fullPath));
         } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
-            adminService.removeTopic(getStreamName(fullPath),
+            adminService.removeTopic(getStreamName(fullPath.getParent()),
                     fullPath.getFileName().toString());
         }
         Files.deleteIfExists(fullPath);
@@ -234,12 +239,14 @@ public class StreamFuse extends FuseStubFS {
         log.info("readdir for -> {}", fullPath);
 
         if (isMatchPattern(fullPath, STREAM_PATTERN)) {
-            adminService.getTopicNames("/" + fullPath.getFileName().toString())
+            adminService.getTopicNames(getStreamName(fullPath))
                     .forEach(x -> filter.apply(buf, x, null, 0));
             return 0;
         } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
-            adminService.getTopicPartitions(transformToTopicName(fullPath))
-                    .forEach(x -> filter.apply(buf, x.partition() + "", null, 0));
+            int numberOfPartitions = adminService.getTopicPartitions(getStreamName(fullPath.getParent()), getTopicName(fullPath));
+            for (int i = 0; i < numberOfPartitions; i++) {
+                filter.apply(buf, Integer.toString(i), null, 0);
+            }
             return 0;
         }
 
