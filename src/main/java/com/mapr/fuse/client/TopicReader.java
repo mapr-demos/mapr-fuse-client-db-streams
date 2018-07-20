@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.mapr.fuse.service.TopicDataService.MESSAGE_PATTERN;
+import static com.mapr.fuse.service.ReadDataService.MESSAGE_PATTERN;
 
 @Slf4j
 public class TopicReader {
@@ -52,7 +52,8 @@ public class TopicReader {
      * @param timeout   timeout to brake the loop if it is not possible te read needed amount of messages
      * @return List of records
      */
-    public Optional<byte[]> readPartition(TopicPartition partition, long offset, long amount, long timeout) {
+    public Optional<byte[]> readPartition(final TopicPartition partition, final long offset,
+                                          final long amount, final long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
         List<ConsumerRecord<String, String>> records = new LinkedList<>();

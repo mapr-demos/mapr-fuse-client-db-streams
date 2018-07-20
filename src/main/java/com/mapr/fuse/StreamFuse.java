@@ -1,8 +1,10 @@
 package com.mapr.fuse;
 
 import com.mapr.fuse.client.TopicReader;
+import com.mapr.fuse.client.TopicWriter;
 import com.mapr.fuse.service.AdminTopicService;
-import com.mapr.fuse.service.TopicDataService;
+import com.mapr.fuse.service.ReadDataService;
+import com.mapr.fuse.service.WriteDataService;
 import jnr.ffi.Pointer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import ru.serce.jnrfuse.struct.FuseFileInfo;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,15 +39,18 @@ public class StreamFuse extends FuseStubFS {
     private final static String TOPIC_PATTERN = ".*\\.st/[^/]+$";
     private final static String PARTITION_PATTERN = ".*\\.st/[^/]+/.+";
 
-    private final static String TOPIC_NAME_PATTERN = "/%s:%s";
+    private final static String TOPIC_NAME_PATTERN = "%s:%s";
 
     private final Path root;
-    private TopicDataService tdService;
+    private ReadDataService tdService;
     private AdminTopicService adminService;
+    private WriteDataService wdService;
 
-    private StreamFuse(Path root, TopicDataService tdService, AdminTopicService adminService) {
+    private StreamFuse(Path root, ReadDataService tdService, WriteDataService wdService,
+                       AdminTopicService adminService) {
         this.root = root;
         this.tdService = tdService;
+        this.wdService = wdService;
         this.adminService = adminService;
     }
 
@@ -57,9 +63,11 @@ public class StreamFuse extends FuseStubFS {
             log.info("Root folder -> {}", root);
 
             TopicReader reader = new TopicReader();
-            TopicDataService topicDataService = new TopicDataService(reader);
+            TopicWriter writer = new TopicWriter();
+            ReadDataService readDataService = new ReadDataService(reader);
+            WriteDataService writeDataService = new WriteDataService(writer);
             AdminTopicService adminService = new AdminTopicService(new Configuration());
-            StreamFuse stub = new StreamFuse(Paths.get(root), topicDataService, adminService);
+            StreamFuse stub = new StreamFuse(Paths.get(root), readDataService, writeDataService, adminService);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -101,7 +109,10 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private int getPartitionSize(Path fullPath) {
-        return tdService.requestTopicSizeData(transformToTopicName(fullPath.getParent()),
+
+        String stream = getStreamName(fullPath.getParent().getParent());
+        String topic = getTopicName(fullPath.getParent());
+        return tdService.requestTopicSizeData(transformToTopicName(stream, topic),
                 getPartitionId(fullPath)).stream()
                 .mapToInt(Integer::intValue)
                 .sum();
@@ -115,14 +126,16 @@ public class StreamFuse extends FuseStubFS {
         return adminService.getTopicNames(getStreamName(fullPath.getParent())).contains(getTopicName(fullPath));
     }
 
+    private String getStreamName(Path fullPath) {
+        return String.format("/%s", fullPath.getFileName().toString());
+    }
+
     private String getTopicName(Path fullPath) {
         return fullPath.getFileName().toString();
     }
 
-    private String transformToTopicName(Path fullPath) {
-        return String.format(TOPIC_NAME_PATTERN,
-                fullPath.getParent().getFileName().toString(),
-                fullPath.getFileName().toString());
+    private String transformToTopicName(String stream, String topic) {
+        return String.format(TOPIC_NAME_PATTERN, stream, topic);
     }
 
     @Override
@@ -141,10 +154,6 @@ public class StreamFuse extends FuseStubFS {
             Files.createDirectory(fullPath);
         }
         return 0;
-    }
-
-    private String getStreamName(Path fullPath) {
-        return String.format("/%s", fullPath.getFileName().toString());
     }
 
     @Override
@@ -178,10 +187,17 @@ public class StreamFuse extends FuseStubFS {
     }
 
     @Override
+    public int truncate(String path, long size) {
+        String fullPath = getFullPath(root, path).toString();
+        log.info("truncate for -> {}", fullPath);
+        return 0;
+    }
+
+    @Override
     public int open(final String path, final FuseFileInfo fi) {
         String fullPath = getFullPath(root, path).toString();
         log.info("open for -> {}", fullPath);
-        return super.open(fullPath, fi);
+        return 0;
     }
 
     @Override
@@ -190,8 +206,14 @@ public class StreamFuse extends FuseStubFS {
         log.info("read for -> {}", fullPath);
         if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
             long amountOfBytes = offset + size;
-            TopicPartition partition = new TopicPartition(transformToTopicName(fullPath.getParent()), getPartitionId(fullPath));
+            String stream = getStreamName(fullPath.getParent().getParent());
+            String topic = getTopicName(fullPath.getParent());
+
+            TopicPartition partition =
+                    new TopicPartition(transformToTopicName(stream, topic), getPartitionId(fullPath));
+
             byte[] vr = tdService.readRequiredBytesFromTopicPartition(partition, offset, amountOfBytes, 2000L);
+
             buf.put(0, vr, 0, vr.length);
             return vr.length;
         } else {
@@ -201,6 +223,36 @@ public class StreamFuse extends FuseStubFS {
             buf.put(0, batchOfBytes, 0, numOfReadBytes);
             return numOfReadBytes;
         }
+    }
+
+    @Override
+    public int write(String path, Pointer buf, long size, long offset, FuseFileInfo fi) {
+        Path fullPath = getFullPath(root, path);
+        log.info("write for -> {}", fullPath);
+
+        byte[] bytesToWrite = new byte[(int) size];
+        buf.get(0, bytesToWrite, 0, (int) size);
+
+        if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
+            wdService.writeToPartition(transformToTopicName(getStreamName(fullPath.getParent().getParent()),
+                    getTopicName(fullPath.getParent())), validateBytes(bytesToWrite), 5000L);
+        } else {
+            writeToPosition(fullPath.toAbsolutePath().toString(), bytesToWrite, offset);
+        }
+        return (int) size;
+    }
+
+    private void writeToPosition(String filename, byte[] data, long position) {
+        try (RandomAccessFile writer = new RandomAccessFile(filename, "rw");) {
+            writer.seek(position);
+            writer.write(data);
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private byte[] validateBytes(byte[] bytesToWrite) {
+        return new String(bytesToWrite).replace("\n", "").replace("\r", "").getBytes();
     }
 
     private int getPartitionId(Path fullPath) {

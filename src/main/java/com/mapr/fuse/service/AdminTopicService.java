@@ -20,32 +20,32 @@ public class AdminTopicService {
     }
 
     @SneakyThrows
-    public Set<String> getTopicNames(String streamPath) {
+    public Set<String> getTopicNames(final String streamPath) {
         return new HashSet<>(admin.listTopics(streamPath));
     }
 
     @SneakyThrows
-    public int getTopicPartitions(String stream, String topic) {
+    public int getTopicPartitions(final String stream, final String topic) {
         return admin.getTopicDescriptor(stream, topic).getPartitions();
     }
 
     @SneakyThrows
-    public void createStream(String stream) {
+    public void createStream(final String stream) {
         admin.createStream(stream, Streams.newStreamDescriptor());
     }
 
     @SneakyThrows
-    public void createTopic(String stream, String topic) {
+    public void createTopic(final String stream, final String topic) {
         admin.createTopic(stream, topic);
     }
 
     @SneakyThrows
-    public void removeStream(String stream) {
+    public void removeStream(final String stream) {
         admin.deleteStream(stream);
     }
 
     @SneakyThrows
-    public void removeTopic(String stream, String topic) {
+    public void removeTopic(final String stream, final String topic) {
         admin.deleteTopic(stream, topic);
     }
 

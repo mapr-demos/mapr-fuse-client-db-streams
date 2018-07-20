@@ -50,7 +50,7 @@ Start the file system and mount <your_folder> (must exist) as a local directory
 $ java -jar mapr-fue-client-db-streams/build/libs/mapr-fuse-client-db-streams-1.0-SNAPSHOT-all.jar ~/<your_folder> ~/tx
 ```
 
-Check out the contents of `~/<your_folder>` folder. Here you can create a stream. For this purposes you need
+* Check out the contents of `~/<your_folder>` folder. Here you can create a stream. For this purposes you need
 to create folder with a name like `*.st`
 
 ```bash
@@ -75,7 +75,7 @@ drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
 ```
 
-Now you can create topic for this stream by creating folder in the stream folder
+* Now you can create topic for this stream by creating folder in the stream folder
 
 ```bash
 $ ll your_folder/films.st
@@ -112,14 +112,17 @@ $ maprcli stream topic list -path /films.st -json
 	]
 }
 ```
-When you create a topic one partition will be created by default
+
+* When you create a topic one partition will be created by default
 
 ```bash
 $ ll your_folder/films.st/comedy
 total 0
 -r-------- 1 mapr mapr 0 Jul 11 12:13 0
 ```
-After this, you can read the partition. 
+
+*After this, you can read the partition. 
+
 ```bash
 $ cat your_folder/films.st/comedy/0
 START_MESS_SIZE=45 {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
@@ -135,19 +138,38 @@ START_MESS_SIZE=44 {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
 START_MESS_SIZE=46 {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
 ```
 
-Also, you can read this partition in real time.
+* Also, you can read this partition in real time.
 
 ```bash
 $ tail -f your_folder/films.st/comedy/0
 ```
 
-Or read some concrete bytes from the partition.
+* Or read some concrete bytes from the partition.
 
 ```bash
 $ dd skip=8192 count=100 bs=1 if=your_folder/films.st/comedy/0
 ```
 
-Also you can remove topic or stream.
+* Or you can append new messages by typing for example
+
+```bash
+$ echo '{"type": "test", "t": 1532098619.488, "k": 301}' >> your_folder/films.st/comedy/0
+$ cat your_folder/films.st/comedy/0
+START_MESS_SIZE=45 {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741609.926, "k": 3} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741610.177, "k": 4} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741610.427, "k": 5} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741610.678, "k": 6} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741610.929, "k": 7} END_MESS
+START_MESS_SIZE=45 {"type": "test", "t": 1531741611.179, "k": 8} END_MESS
+START_MESS_SIZE=44 {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
+START_MESS_SIZE=46 {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
+START_MESS_SIZE=47 {"type": "test", "t": 1532098619.488, "k": 301} END_MESS
+```
+
+* Also you can remove topic or stream.
 
 ```bash
 $ rmdir your_folder/films.st/comedy

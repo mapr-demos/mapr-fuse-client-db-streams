@@ -36,7 +36,8 @@ public class KafkaClient {
         kafkaConsumer = new KafkaConsumer<>(consumerProps);
     }
 
-    public List<ConsumerRecord<String, String>> readPartition(final TopicPartition partition, final long offset, final long timeout) {
+    public List<ConsumerRecord<String, String>> readPartition(final TopicPartition partition, final long offset,
+                                                              final long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
         List<ConsumerRecord<String, String>> records = new LinkedList<>();

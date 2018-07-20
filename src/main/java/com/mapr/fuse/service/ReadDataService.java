@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public class TopicDataService {
+public class ReadDataService {
 
     public static final String MESSAGE_PATTERN = "START_MESS_SIZE=%s %s END_MESS\n";
 
@@ -22,7 +22,7 @@ public class TopicDataService {
     private TopicReader reader;
     private ConcurrentHashMap<TopicPartition, LinkedList<Integer>> topicSizeData;
 
-    public TopicDataService(final TopicReader reader) {
+    public ReadDataService(final TopicReader reader) {
         this.reader = reader;
         kafkaClient = new KafkaClient();
         topicSizeData = new ConcurrentHashMap<>();
@@ -34,13 +34,13 @@ public class TopicDataService {
      * @param topicName topic to track
      * @return list of sizes of messages
      */
-    public List<Integer> requestTopicSizeData(String topicName, Integer partitionId) {
+    public List<Integer> requestTopicSizeData(final String topicName, final Integer partitionId) {
         TopicPartition partition = new TopicPartition(topicName, partitionId);
         updatePartitionSize(partition);
         return topicSizeData.get(partition);
     }
 
-    private void updatePartitionSize(TopicPartition partition) {
+    private void updatePartitionSize(final TopicPartition partition) {
         if (!topicSizeData.containsKey(partition)) {
             topicSizeData.put(partition, new LinkedList<>());
         }
@@ -54,7 +54,8 @@ public class TopicDataService {
      *
      * @return byte array with records
      */
-    public byte[] readRequiredBytesFromTopicPartition(TopicPartition partition, Long startOffset, Long numberOfBytes, Long timeout) {
+    public byte[] readRequiredBytesFromTopicPartition(final TopicPartition partition, final Long startOffset,
+                                                      final Long numberOfBytes, final Long timeout) {
         TopicRange topicReadRange =
                 calculateReadRange(partition, startOffset, numberOfBytes);
 
@@ -69,7 +70,7 @@ public class TopicDataService {
     /**
      * Calculates read range based on offset and number of needed bytes
      */
-    private TopicRange calculateReadRange(TopicPartition partition, Long startOffset, Long endOffset) {
+    private TopicRange calculateReadRange(final TopicPartition partition, final Long startOffset, final Long endOffset) {
         List<Integer> messagesSizes = topicSizeData.get(partition);
 
         MessageRange startRange =
@@ -81,7 +82,7 @@ public class TopicDataService {
         return new TopicRange(startRange, endRange);
     }
 
-    private MessageRange calculateMessageRange(List<Integer> messagesSizes, Long endOffset) {
+    private MessageRange calculateMessageRange(final List<Integer> messagesSizes, final Long endOffset) {
         int sum = 0;
         int messOffset = 0;
         int i = 0;
