@@ -9,7 +9,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.BytesDeserializer;
+import org.apache.kafka.common.utils.Bytes;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,7 +27,7 @@ import static com.mapr.fuse.service.ReadDataService.MESSAGE_PATTERN;
 @Slf4j
 public class TopicReader {
 
-    private final KafkaConsumer<String, String> kafkaConsumer;
+    private final KafkaConsumer<Bytes, Bytes> kafkaConsumer;
     private final static String KAFKA_HOST = "kafkaHost";
 
 
@@ -34,8 +35,8 @@ public class TopicReader {
         Map<String, Object> consumerProps = new HashMap<>();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_HOST);
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "fuse-client-reader");
-        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, BytesDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BytesDeserializer.class);
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
@@ -56,7 +57,7 @@ public class TopicReader {
                                           final long amount, final long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
-        List<ConsumerRecord<String, String>> records = new LinkedList<>();
+        List<ConsumerRecord<Bytes, Bytes>> records = new LinkedList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
         kafkaConsumer.assign(Collections.singletonList(partition));
         while (!closed.get()) {
@@ -70,7 +71,7 @@ public class TopicReader {
 
                 kafkaConsumer.seek(partition, currentPosition);
 
-                ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(500);
+                ConsumerRecords<Bytes, Bytes> consumerRecords = kafkaConsumer.poll(500);
                 if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
                     if (stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
                         closed.set(true);
@@ -90,7 +91,8 @@ public class TopicReader {
         kafkaConsumer.unsubscribe();
         return records.stream()
                 .limit(amount)
-                .map(record -> String.format(MESSAGE_PATTERN, record.value().getBytes().length, record.value()).getBytes())
+                .map(record -> String.format(MESSAGE_PATTERN, record.value().get().length,
+                        new String(record.value().get())).getBytes())
                 .reduce(ArrayUtils::addAll);
     }
 }

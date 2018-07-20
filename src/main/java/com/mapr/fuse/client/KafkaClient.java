@@ -8,7 +8,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.BytesDeserializer;
+import org.apache.kafka.common.utils.Bytes;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,26 +22,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class KafkaClient {
-    private final KafkaConsumer<String, String> kafkaConsumer;
+    private final KafkaConsumer<Bytes, Bytes> kafkaConsumer;
     private final static String KAFKA_HOST = "kafkaHost";
 
     public KafkaClient() {
         Map<String, Object> consumerProps = new HashMap<>();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_HOST);
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "fuse-client");
-        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, BytesDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BytesDeserializer.class);
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
         kafkaConsumer = new KafkaConsumer<>(consumerProps);
     }
 
-    public List<ConsumerRecord<String, String>> readPartition(final TopicPartition partition, final long offset,
-                                                              final long timeout) {
+    public List<ConsumerRecord<Bytes, Bytes>> readPartition(final TopicPartition partition, final long offset,
+                                                            final long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
-        List<ConsumerRecord<String, String>> records = new LinkedList<>();
+        List<ConsumerRecord<Bytes, Bytes>> records = new LinkedList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
         kafkaConsumer.assign(Collections.singletonList(partition));
         while (!closed.get()) {
@@ -54,7 +55,7 @@ public class KafkaClient {
 
                 kafkaConsumer.seek(partition, currentPosition);
 
-                ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(500);
+                ConsumerRecords<Bytes, Bytes> consumerRecords = kafkaConsumer.poll(500);
                 if (Objects.isNull(consumerRecords) || consumerRecords.isEmpty()) {
                     if (stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
                         closed.set(true);

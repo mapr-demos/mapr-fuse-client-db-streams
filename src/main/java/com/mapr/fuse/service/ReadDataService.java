@@ -46,7 +46,7 @@ public class ReadDataService {
         }
         kafkaClient.readPartition(partition, topicSizeData.get(partition).size(), 200L)
                 .forEach(record -> topicSizeData.get(partition).addLast((String.format(MESSAGE_PATTERN,
-                        record.value().getBytes().length, record.value()).getBytes().length)));
+                        record.value().get().length, new String(record.value().get())).getBytes().length)));
     }
 
     /**
