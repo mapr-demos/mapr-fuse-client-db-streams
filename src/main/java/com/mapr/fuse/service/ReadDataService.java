@@ -1,7 +1,9 @@
 package com.mapr.fuse.service;
 
+import com.mapr.fuse.client.ConfigReader;
 import com.mapr.fuse.client.KafkaClient;
 import com.mapr.fuse.client.TopicReader;
+import com.mapr.fuse.dto.MessageConfig;
 import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
 import lombok.extern.slf4j.Slf4j;
@@ -16,14 +18,16 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class ReadDataService {
 
-    public static final String MESSAGE_PATTERN = "START_MESS_SIZE=%s %s END_MESS\n";
-
     private KafkaClient kafkaClient;
+    private ConfigReader configReader;
     private TopicReader reader;
     private ConcurrentHashMap<TopicPartition, LinkedList<Integer>> topicSizeData;
+    private MessageConfig messageConfig;
 
-    public ReadDataService(final TopicReader reader) {
+    public ReadDataService(final TopicReader reader, ConfigReader configReader) {
         this.reader = reader;
+        this.configReader = configReader;
+        messageConfig = new MessageConfig();
         kafkaClient = new KafkaClient();
         topicSizeData = new ConcurrentHashMap<>();
     }
@@ -34,10 +38,15 @@ public class ReadDataService {
      * @param topicName topic to track
      * @return list of sizes of messages
      */
-    public List<Integer> requestTopicSizeData(final String topicName, final Integer partitionId) {
+    public Integer requestTopicSizeData(final String topicName, final Integer partitionId) {
         TopicPartition partition = new TopicPartition(topicName, partitionId);
+        updateMessageConfig();
         updatePartitionSize(partition);
-        return topicSizeData.get(partition);
+
+        return topicSizeData.get(partition).stream()
+                .mapToInt(Integer::intValue)
+                .map(x -> x + getSeparatorsLength())
+                .sum();
     }
 
     private void updatePartitionSize(final TopicPartition partition) {
@@ -45,12 +54,20 @@ public class ReadDataService {
             topicSizeData.put(partition, new LinkedList<>());
         }
         kafkaClient.readPartition(partition, topicSizeData.get(partition).size(), 200L)
-                .forEach(record -> topicSizeData.get(partition).addLast((String.format(MESSAGE_PATTERN,
-                        record.value().get().length, new String(record.value().get())).getBytes().length)));
+                .forEach(record -> topicSizeData.get(partition)
+                        .addLast(record.value().get().length + getSeparatorsLength()));
+    }
+
+    private void updateMessageConfig() {
+        messageConfig = configReader.getLatestMessageConfig(1500L);
+    }
+
+    private Integer getSeparatorsLength() {
+        return (messageConfig.getSeparator() + messageConfig.getStart() + messageConfig.getStop()).getBytes().length;
     }
 
     /**
-     * The same as {@link TopicReader#readPartition(TopicPartition, long, long, long)}
+     * The same as {@link TopicReader#readPartition(TopicPartition, long, long, long, MessageConfig)}
      *
      * @return byte array with records
      */
@@ -60,7 +77,7 @@ public class ReadDataService {
                 calculateReadRange(partition, startOffset, numberOfBytes);
 
         Optional<byte[]> batchOfBytes = reader.readPartition(partition, topicReadRange.getStartOffset().getTopicOffset(),
-                topicReadRange.getNumberOfMessages(), timeout);
+                topicReadRange.getNumberOfMessages(), timeout, messageConfig);
 
         return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, topicReadRange.getStartOffset().getOffsetFromStartMessage(),
                 bytes.length - topicReadRange.getEndOffset().getMessageOffset())).orElseGet(() -> new byte[0]);

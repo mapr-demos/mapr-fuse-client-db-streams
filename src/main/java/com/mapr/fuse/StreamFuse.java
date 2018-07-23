@@ -1,5 +1,6 @@
 package com.mapr.fuse;
 
+import com.mapr.fuse.client.ConfigReader;
 import com.mapr.fuse.client.TopicReader;
 import com.mapr.fuse.client.TopicWriter;
 import com.mapr.fuse.service.AdminTopicService;
@@ -62,9 +63,13 @@ public class StreamFuse extends FuseStubFS {
             log.info("Mount point -> {}", mountPoint);
             log.info("Root folder -> {}", root);
 
+            TopicPartition configTopic =
+                    new TopicPartition("/fuse_config:message_config", 0);
+
             TopicReader reader = new TopicReader();
+            ConfigReader configReader = new ConfigReader(configTopic);
             TopicWriter writer = new TopicWriter();
-            ReadDataService readDataService = new ReadDataService(reader);
+            ReadDataService readDataService = new ReadDataService(reader, configReader);
             WriteDataService writeDataService = new WriteDataService(writer);
             AdminTopicService adminService = new AdminTopicService(new Configuration());
             StreamFuse stub = new StreamFuse(Paths.get(root), readDataService, writeDataService, adminService);
@@ -109,13 +114,10 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private int getPartitionSize(Path fullPath) {
-
         String stream = getStreamName(fullPath.getParent().getParent());
         String topic = getTopicName(fullPath.getParent());
         return tdService.requestTopicSizeData(transformToTopicName(stream, topic),
-                getPartitionId(fullPath)).stream()
-                .mapToInt(Integer::intValue)
-                .sum();
+                getPartitionId(fullPath));
     }
 
     private boolean isPartitionExist(Path path, Integer partitionId) {

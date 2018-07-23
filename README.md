@@ -36,6 +36,25 @@ Build a project
 $ gradle clean shadowJar
 ```
 
+Create stream with config (required)
+```bash
+$ maprcli stream create -path /fuse_config
+$ maprcli stream topic create -path /fuse_config -topic message_config
+```
+
+If the topic is empty will be used default settings
+```
+start: ''
+stop: ''
+separator: ''
+count: false
+```
+
+Or you can specify custom settings. Send to /fuse_config:message_config message in this format
+```bash
+{"start": "START_MESS","stop": "END_MESS","separator": "\n","size": false}
+```
+
 Now, you can find an executable jar in a build/libs folder
 
 ```bash
@@ -125,17 +144,17 @@ total 0
 
 ```bash
 $ cat your_folder/films.st/comedy/0
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.926, "k": 3} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.177, "k": 4} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.427, "k": 5} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.678, "k": 6} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.929, "k": 7} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741611.179, "k": 8} END_MESS
-START_MESS_SIZE=44 {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
-START_MESS_SIZE=46 {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
+START_MESS {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
+START_MESS {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
+START_MESS {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
+START_MESS {"type": "test", "t": 1531741609.926, "k": 3} END_MESS
+START_MESS {"type": "test", "t": 1531741610.177, "k": 4} END_MESS
+START_MESS {"type": "test", "t": 1531741610.427, "k": 5} END_MESS
+START_MESS {"type": "test", "t": 1531741610.678, "k": 6} END_MESS
+START_MESS {"type": "test", "t": 1531741610.929, "k": 7} END_MESS
+START_MESS {"type": "test", "t": 1531741611.179, "k": 8} END_MESS
+START_MESS {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
+START_MESS {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
 ```
 
 * Also, you can read this partition in real time.
@@ -155,18 +174,18 @@ $ dd skip=8192 count=100 bs=1 if=your_folder/films.st/comedy/0
 ```bash
 $ echo '{"type": "test", "t": 1532098619.488, "k": 301}' >> your_folder/films.st/comedy/0
 $ cat your_folder/films.st/comedy/0
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741609.926, "k": 3} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.177, "k": 4} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.427, "k": 5} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.678, "k": 6} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741610.929, "k": 7} END_MESS
-START_MESS_SIZE=45 {"type": "test", "t": 1531741611.179, "k": 8} END_MESS
-START_MESS_SIZE=44 {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
-START_MESS_SIZE=46 {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
-START_MESS_SIZE=47 {"type": "test", "t": 1532098619.488, "k": 301} END_MESS
+START_MESS {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
+START_MESS {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
+START_MESS {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
+START_MESS {"type": "test", "t": 1531741609.926, "k": 3} END_MESS
+START_MESS {"type": "test", "t": 1531741610.177, "k": 4} END_MESS
+START_MESS {"type": "test", "t": 1531741610.427, "k": 5} END_MESS
+START_MESS {"type": "test", "t": 1531741610.678, "k": 6} END_MESS
+START_MESS {"type": "test", "t": 1531741610.929, "k": 7} END_MESS
+START_MESS {"type": "test", "t": 1531741611.179, "k": 8} END_MESS
+START_MESS {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
+START_MESS {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
+START_MESS {"type": "test", "t": 1532098619.488, "k": 301} END_MESS
 ```
 
 * Also you can remove topic or stream.

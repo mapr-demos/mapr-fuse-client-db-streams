@@ -1,6 +1,7 @@
 package com.mapr.fuse.client;
 
 import com.google.common.base.Stopwatch;
+import com.mapr.fuse.dto.MessageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -22,14 +23,11 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.mapr.fuse.service.ReadDataService.MESSAGE_PATTERN;
-
 @Slf4j
 public class TopicReader {
 
     private final KafkaConsumer<Bytes, Bytes> kafkaConsumer;
     private final static String KAFKA_HOST = "kafkaHost";
-
 
     public TopicReader() {
         Map<String, Object> consumerProps = new HashMap<>();
@@ -54,7 +52,7 @@ public class TopicReader {
      * @return List of records
      */
     public Optional<byte[]> readPartition(final TopicPartition partition, final long offset,
-                                          final long amount, final long timeout) {
+                                          final long amount, final long timeout, MessageConfig config) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
         List<ConsumerRecord<Bytes, Bytes>> records = new LinkedList<>();
@@ -91,8 +89,12 @@ public class TopicReader {
         kafkaConsumer.unsubscribe();
         return records.stream()
                 .limit(amount)
-                .map(record -> String.format(MESSAGE_PATTERN, record.value().get().length,
-                        new String(record.value().get())).getBytes())
+                .map(record -> formatMessage(config, new String(record.value().get())).getBytes())
                 .reduce(ArrayUtils::addAll);
+    }
+
+    private String formatMessage(MessageConfig messageConfig, String message) {
+        return String.format("%s%s%s%s",
+                messageConfig.getStart(), message, messageConfig.getStop(), messageConfig.getSeparator());
     }
 }
