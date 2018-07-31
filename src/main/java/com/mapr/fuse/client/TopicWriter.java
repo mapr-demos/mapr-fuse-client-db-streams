@@ -13,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 public class TopicWriter {
 
     private final KafkaProducer<byte[], byte[]> kafkaProducer;
-    private final static String KAFKA_HOST = "kafkaHost";
 
 
     public TopicWriter() {
@@ -22,7 +21,7 @@ public class TopicWriter {
 
     private Map<String, Object> getSetupProperties() {
         Map<String, Object> producerConfig = new HashMap<>();
-        producerConfig.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_HOST);
+//        producerConfig.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_HOST);
         producerConfig.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
         producerConfig.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
         return producerConfig;

@@ -1,11 +1,9 @@
 package com.mapr.fuse;
 
-import com.mapr.fuse.client.ConfigReader;
 import com.mapr.fuse.client.TopicReader;
 import com.mapr.fuse.client.TopicWriter;
 import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.ReadDataService;
-import com.mapr.fuse.service.WriteDataService;
 import jnr.ffi.Pointer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -45,13 +43,13 @@ public class StreamFuse extends FuseStubFS {
     private final Path root;
     private ReadDataService tdService;
     private AdminTopicService adminService;
-    private WriteDataService wdService;
+    private TopicWriter topicWriter;
 
-    private StreamFuse(Path root, ReadDataService tdService, WriteDataService wdService,
+    private StreamFuse(Path root, ReadDataService tdService, TopicWriter topicWriter,
                        AdminTopicService adminService) {
         this.root = root;
         this.tdService = tdService;
-        this.wdService = wdService;
+        this.topicWriter = topicWriter;
         this.adminService = adminService;
     }
 
@@ -63,16 +61,11 @@ public class StreamFuse extends FuseStubFS {
             log.info("Mount point -> {}", mountPoint);
             log.info("Root folder -> {}", root);
 
-            TopicPartition configTopic =
-                    new TopicPartition("/fuse_config:message_config", 0);
-
             TopicReader reader = new TopicReader();
-            ConfigReader configReader = new ConfigReader(configTopic);
             TopicWriter writer = new TopicWriter();
-            ReadDataService readDataService = new ReadDataService(reader, configReader);
-            WriteDataService writeDataService = new WriteDataService(writer);
+            ReadDataService readDataService = new ReadDataService(reader);
             AdminTopicService adminService = new AdminTopicService(new Configuration());
-            StreamFuse stub = new StreamFuse(Paths.get(root), readDataService, writeDataService, adminService);
+            StreamFuse stub = new StreamFuse(Paths.get(root), readDataService, writer, adminService);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -236,7 +229,7 @@ public class StreamFuse extends FuseStubFS {
         buf.get(0, bytesToWrite, 0, (int) size);
 
         if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
-            wdService.writeToPartition(transformToTopicName(getStreamName(fullPath.getParent().getParent()),
+            topicWriter.writeToTopic(transformToTopicName(getStreamName(fullPath.getParent().getParent()),
                     getTopicName(fullPath.getParent())), validateBytes(bytesToWrite), 5000L);
         } else {
             writeToPosition(fullPath.toAbsolutePath().toString(), bytesToWrite, offset);
