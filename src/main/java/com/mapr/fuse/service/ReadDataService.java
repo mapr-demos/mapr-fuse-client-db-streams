@@ -18,23 +18,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ReadDataService {
 
     private TopicReader topicReader;
-    private TopicReader reader;
     private ConcurrentHashMap<TopicPartition, LinkedList<Integer>> topicSizeData;
     private MessageConfig messageConfig;
 
-    public ReadDataService(final TopicReader reader) {
-        this.reader = reader;
+    public ReadDataService() {
         messageConfig = new MessageConfig();
         topicReader = new TopicReader();
         topicSizeData = new ConcurrentHashMap<>();
     }
 
-    /**
-     * Start tracking size of topic in the background thread.
-     *
-     * @param topicName topic to track
-     * @return list of sizes of messages
-     */
     public Integer requestTopicSizeData(final String topicName, final Integer partitionId) {
         TopicPartition partition = new TopicPartition(topicName, partitionId);
         updateMessageConfig();
@@ -51,7 +43,7 @@ public class ReadDataService {
         TopicRange topicReadRange =
                 calculateReadRange(partition, startOffset, numberOfBytes);
 
-        Optional<byte[]> batchOfBytes = reader.readAndFormat(partition, topicReadRange.getStartOffset().getTopicOffset(),
+        Optional<byte[]> batchOfBytes = topicReader.readAndFormat(partition, topicReadRange.getStartOffset().getTopicOffset(),
                 topicReadRange.getNumberOfMessages(), timeout, messageConfig);
 
         return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, topicReadRange.getStartOffset().getOffsetFromStartMessage(),

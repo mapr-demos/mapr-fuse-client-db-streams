@@ -1,6 +1,5 @@
 package com.mapr.fuse;
 
-import com.mapr.fuse.client.TopicReader;
 import com.mapr.fuse.client.TopicWriter;
 import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.ReadDataService;
@@ -61,9 +60,8 @@ public class StreamFuse extends FuseStubFS {
             log.info("Mount point -> {}", mountPoint);
             log.info("Root folder -> {}", root);
 
-            TopicReader reader = new TopicReader();
             TopicWriter writer = new TopicWriter();
-            ReadDataService readDataService = new ReadDataService(reader);
+            ReadDataService readDataService = new ReadDataService();
             AdminTopicService adminService = new AdminTopicService(new Configuration());
             StreamFuse stub = new StreamFuse(Paths.get(root), readDataService, writer, adminService);
             stub.mount(Paths.get(mountPoint), true);
