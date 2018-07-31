@@ -52,7 +52,7 @@ public class TopicReader {
      * @return List of records
      */
     public Optional<byte[]> readPartition(final TopicPartition partition, final long offset,
-                                          final long amount, final long timeout, MessageConfig config) {
+            final long amount, final long timeout, MessageConfig config) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
         List<ConsumerRecord<Bytes, Bytes>> records = new LinkedList<>();

@@ -1,9 +1,10 @@
 package com.mapr.fuse.client;
 
 import lombok.SneakyThrows;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,15 +21,11 @@ public class TopicWriter {
     }
 
     private Map<String, Object> getSetupProperties() {
-        Map<String, Object> consumerProps = new HashMap<>();
-        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_HOST);
-        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "fuse-client-reader");
-        consumerProps.put("value.serializer",
-                "org.apache.kafka.common.serialization.ByteArraySerializer");
-        consumerProps.put("key.serializer",
-                "org.apache.kafka.common.serialization.ByteArraySerializer");
-        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        return consumerProps;
+        Map<String, Object> producerConfig = new HashMap<>();
+        producerConfig.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_HOST);
+        producerConfig.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+        producerConfig.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+        return producerConfig;
     }
 
     /**
