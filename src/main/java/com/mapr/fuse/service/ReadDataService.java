@@ -53,7 +53,7 @@ public class ReadDataService {
     @SneakyThrows
     public MessageConfig getLatestConfig() {
         ConsumerRecord<Bytes, Bytes> record = topicReader.readPartition(new TopicPartition("/fuse_config:message_config", 0),
-                0, 1000L, 200L).reduce((first, second) -> second).orElse(null);
+                0, 200L).stream().reduce((first, second) -> second).orElse(null);
         ObjectMapper mapper = new ObjectMapper();
         if (Objects.isNull(record)) {
             return new MessageConfig();

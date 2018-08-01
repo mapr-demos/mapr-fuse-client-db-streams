@@ -16,7 +16,6 @@ import org.apache.kafka.common.utils.Bytes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 @Slf4j
 public class TopicReader {
@@ -46,7 +45,7 @@ public class TopicReader {
      * @param timeout   timeout to brake the loop if it is not possible te read needed amount of messages
      * @return List of records
      */
-    public Stream<ConsumerRecord<Bytes, Bytes>> readPartition(final TopicPartition partition, final long offset,
+    public List<ConsumerRecord<Bytes, Bytes>> readPartition(final TopicPartition partition, final long offset,
             final long amount, final long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
@@ -82,13 +81,18 @@ public class TopicReader {
             }
         }
         kafkaConsumer.unsubscribe();
-        return records.stream()
-                .limit(amount);
+        return records;
+    }
+
+    public List<ConsumerRecord<Bytes, Bytes>> readPartition(final TopicPartition partition, final long offset,
+            final long timeout) {
+        return readPartition(partition, offset, 1000L, timeout);
     }
 
     public Optional<byte[]> readAndFormat(final TopicPartition partition, final long offset,
             final long amount, final long timeout, MessageConfig config) {
-        return readPartition(partition, offset, amount, timeout)
+        return readPartition(partition, offset, amount, timeout).stream()
+                .limit(amount)
                 .map(record -> formatMessage(config, new String(record.value().get())).getBytes())
                 .reduce(ArrayUtils::addAll);
     }
