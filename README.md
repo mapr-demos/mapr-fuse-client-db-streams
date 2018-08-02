@@ -63,7 +63,7 @@ total 122748
 -rw-rw-r-- 1 mapr mapr 125687568 Jul 16 14:30 mapr-fuse-client-db-streams-1.0-SNAPSHOT-all.jar
 ```
 
-Start the file system and mount <your_folder> (must exist) as a local directory
+Start the file system and mount <your_folder> as a local directory (<your_folder> and <tx> must exist)
 
 ```bash
 $ java -jar mapr-fue-client-db-streams/build/libs/mapr-fuse-client-db-streams-1.0-SNAPSHOT-all.jar ~/<your_folder> ~/tx
