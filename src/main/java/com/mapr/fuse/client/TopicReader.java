@@ -16,6 +16,7 @@ import org.apache.kafka.common.utils.Bytes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 @Slf4j
 public class TopicReader {
@@ -45,8 +46,8 @@ public class TopicReader {
      * @param timeout   timeout to brake the loop if it is not possible te read needed amount of messages
      * @return List of records
      */
-    public List<ConsumerRecord<Bytes, Bytes>> readPartition(final TopicPartition partition, final long offset,
-            final long amount, final long timeout) {
+    public Stream<Bytes> readPartition(final TopicPartition partition, final long offset,
+                                       final long amount, final long timeout) {
         final AtomicBoolean closed = new AtomicBoolean(false);
         long currentPosition = offset;
         List<ConsumerRecord<Bytes, Bytes>> records = new LinkedList<>();
@@ -81,19 +82,19 @@ public class TopicReader {
             }
         }
         kafkaConsumer.unsubscribe();
-        return records;
+        return records.stream().map(ConsumerRecord::value);
     }
 
-    public List<ConsumerRecord<Bytes, Bytes>> readPartition(final TopicPartition partition, final long offset,
-            final long timeout) {
+    public Stream<Bytes> readPartition(final TopicPartition partition, final long offset,
+                                       final long timeout) {
         return readPartition(partition, offset, 1000L, timeout);
     }
 
     public Optional<byte[]> readAndFormat(final TopicPartition partition, final long offset,
             final long amount, final long timeout, MessageConfig config) {
-        return readPartition(partition, offset, amount, timeout).stream()
+        return readPartition(partition, offset, amount, timeout)
                 .limit(amount)
-                .map(record -> formatMessage(config, new String(record.value().get())).getBytes())
+                .map(record -> formatMessage(config, new String(record.get())).getBytes())
                 .reduce(ArrayUtils::addAll);
     }
 

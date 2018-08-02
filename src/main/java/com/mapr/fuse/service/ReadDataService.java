@@ -52,13 +52,13 @@ public class ReadDataService {
 
     @SneakyThrows
     public MessageConfig getLatestConfig() {
-        ConsumerRecord<Bytes, Bytes> record = topicReader.readPartition(new TopicPartition("/fuse_config:message_config", 0),
-                0, 200L).stream().reduce((first, second) -> second).orElse(null);
+        Bytes record = topicReader.readPartition(new TopicPartition("/fuse_config:message_config", 0),
+                0, 200L).reduce((first, second) -> second).orElse(null);
         ObjectMapper mapper = new ObjectMapper();
         if (Objects.isNull(record)) {
             return new MessageConfig();
         }
-        String message = record.value().toString();
+        String message = record.toString();
         return mapper.readValue(message, MessageConfig.class);
     }
 
@@ -68,7 +68,7 @@ public class ReadDataService {
         }
         topicReader.readPartition(partition, topicSizeData.get(partition).size(), topicSizeData.get(partition).size(), 200L)
                 .forEach(record -> topicSizeData.get(partition)
-                        .addLast(record.value().get().length + getSeparatorsLength()));
+                        .addLast(record.get().length + getSeparatorsLength()));
     }
 
     private void updateMessageConfig() {
