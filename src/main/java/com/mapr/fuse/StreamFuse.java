@@ -33,11 +33,13 @@ import static ru.serce.jnrfuse.struct.FileStat.S_IRUSR;
 @Slf4j
 public class StreamFuse extends FuseStubFS {
 
-    private final static String STREAM_PATTERN = ".*\\.st$";
-    private final static String TOPIC_PATTERN = ".*\\.st/[^/]+$";
-    private final static String PARTITION_PATTERN = ".*\\.st/[^/]+/.+";
+    private final static String STREAM_PATTERN = "[^/]+$";
+    private final static String TOPIC_PATTERN = "[^/]+/[^/]+$";
+    private final static String PARTITION_PATTERN = "[^/]+/[^/]+/.+";
 
     private final static String TOPIC_NAME_PATTERN = "%s:%s";
+
+    private static String rootPath;
 
     private final Path root;
     private ReadDataService tdService;
@@ -55,15 +57,15 @@ public class StreamFuse extends FuseStubFS {
     public static void main(String[] args) {
         if (args.length == 2) {
             String mountPoint = args[0];
-            String root = args[1];
+            rootPath = args[1];
 
             log.info("Mount point -> {}", mountPoint);
-            log.info("Root folder -> {}", root);
+            log.info("Root folder -> {}", rootPath);
 
             TopicWriter writer = new TopicWriter();
             ReadDataService readDataService = new ReadDataService();
             AdminTopicService adminService = new AdminTopicService(new Configuration());
-            StreamFuse stub = new StreamFuse(Paths.get(root), readDataService, writer, adminService);
+            StreamFuse stub = new StreamFuse(Paths.get(rootPath), readDataService, writer, adminService);
             stub.mount(Paths.get(mountPoint), true);
             stub.umount();
         } else {
@@ -332,6 +334,6 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private boolean isMatchPattern(Path path, String pattern) {
-        return path.toString().matches(pattern);
+        return path.toString().matches("^" + rootPath + pattern);
     }
 }
