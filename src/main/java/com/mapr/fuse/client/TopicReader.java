@@ -1,9 +1,7 @@
 package com.mapr.fuse.client;
 
 import com.google.common.base.Stopwatch;
-import com.mapr.fuse.dto.MessageConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -88,18 +86,5 @@ public class TopicReader {
     public Stream<Bytes> readPartition(final TopicPartition partition, final long offset,
                                        final long timeout) {
         return readPartition(partition, offset, 1000L, timeout);
-    }
-
-    public Optional<byte[]> readAndFormat(final TopicPartition partition, final long offset,
-            final long amount, final long timeout, MessageConfig config) {
-        return readPartition(partition, offset, amount, timeout)
-                .limit(amount)
-                .map(record -> formatMessage(config, new String(record.get())).getBytes())
-                .reduce(ArrayUtils::addAll);
-    }
-
-    private String formatMessage(MessageConfig messageConfig, String message) {
-        return String.format("%s%s%s%s",
-                messageConfig.getStart(), message, messageConfig.getStop(), messageConfig.getSeparator());
     }
 }

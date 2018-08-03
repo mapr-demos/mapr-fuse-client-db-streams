@@ -7,7 +7,7 @@ import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Bytes;
 
@@ -43,8 +43,8 @@ public class ReadDataService {
         TopicRange topicReadRange =
                 calculateReadRange(partition, startOffset, numberOfBytes);
 
-        Optional<byte[]> batchOfBytes = topicReader.readAndFormat(partition, topicReadRange.getStartOffset().getTopicOffset(),
-                topicReadRange.getNumberOfMessages(), timeout, messageConfig);
+        Optional<byte[]> batchOfBytes = readAndFormat(partition, topicReadRange.getStartOffset().getTopicOffset(),
+                topicReadRange.getNumberOfMessages(), timeout);
 
         return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, topicReadRange.getStartOffset().getOffsetFromStartMessage(),
                 bytes.length - topicReadRange.getEndOffset().getMessageOffset())).orElseGet(() -> new byte[0]);
@@ -68,7 +68,7 @@ public class ReadDataService {
         }
         topicReader.readPartition(partition, topicSizeData.get(partition).size(), topicSizeData.get(partition).size(), 200L)
                 .forEach(record -> topicSizeData.get(partition)
-                        .addLast(record.get().length + getSeparatorsLength()));
+                        .addLast(record.get().length));
     }
 
     private void updateMessageConfig() {
@@ -77,6 +77,19 @@ public class ReadDataService {
 
     private Integer getSeparatorsLength() {
         return (messageConfig.getSeparator() + messageConfig.getStart() + messageConfig.getStop()).getBytes().length;
+    }
+
+    private Optional<byte[]> readAndFormat(final TopicPartition partition, final long offset,
+                                          final long amount, final long timeout) {
+        return topicReader.readPartition(partition, offset, amount, timeout)
+                .limit(amount)
+                .map(record -> formatMessage(messageConfig, new String(record.get())).getBytes())
+                .reduce(ArrayUtils::addAll);
+    }
+
+    private String formatMessage(MessageConfig messageConfig, String message) {
+        return String.format("%s%s%s%s",
+                messageConfig.getStart(), message, messageConfig.getStop(), messageConfig.getSeparator());
     }
 
     /**
