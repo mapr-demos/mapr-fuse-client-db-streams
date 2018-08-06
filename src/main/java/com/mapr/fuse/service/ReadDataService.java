@@ -5,6 +5,7 @@ import com.mapr.fuse.client.TopicReader;
 import com.mapr.fuse.dto.MessageConfig;
 import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
+import com.mapr.fuse.utils.MessageUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
@@ -13,6 +14,7 @@ import org.apache.kafka.common.utils.Bytes;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class ReadDataService {
@@ -34,7 +36,8 @@ public class ReadDataService {
 
         return topicSizeData.get(partition).stream()
                 .mapToInt(Integer::intValue)
-                .map(x -> x + getSeparatorsLength())
+                .map(x -> x + MessageUtils.getSeparatorsLength(messageConfig) +
+                        (messageConfig.getSize() ? String.valueOf(x).length() : 0))
                 .sum();
     }
 
@@ -43,11 +46,10 @@ public class ReadDataService {
         TopicRange topicReadRange =
                 calculateReadRange(partition, startOffset, numberOfBytes);
 
-        Optional<byte[]> batchOfBytes = readAndFormat(partition, topicReadRange.getStartOffset().getTopicOffset(),
-                topicReadRange.getNumberOfMessages(), timeout);
+        Optional<byte[]> batchOfBytes = readAndFormat(partition, topicReadRange, timeout);
 
-        return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, topicReadRange.getStartOffset().getOffsetFromStartMessage(),
-                bytes.length - topicReadRange.getEndOffset().getMessageOffset())).orElseGet(() -> new byte[0]);
+        return batchOfBytes.map(bytes -> Arrays.copyOfRange(bytes, 0,
+                numberOfBytes.intValue())).orElseGet(() -> new byte[0]);
     }
 
     @SneakyThrows
@@ -75,21 +77,17 @@ public class ReadDataService {
         messageConfig = getLatestConfig();
     }
 
-    private Integer getSeparatorsLength() {
-        return (messageConfig.getSeparator() + messageConfig.getStart() + messageConfig.getStop()).getBytes().length;
-    }
+    private Optional<byte[]> readAndFormat(final TopicPartition partition, final TopicRange topicRange, final long timeout) {
+        AtomicInteger index = new AtomicInteger();
 
-    private Optional<byte[]> readAndFormat(final TopicPartition partition, final long offset,
-                                          final long amount, final long timeout) {
-        return topicReader.readPartition(partition, offset, amount, timeout)
-                .limit(amount)
-                .map(record -> formatMessage(messageConfig, new String(record.get())).getBytes())
+        return topicReader.readPartition(partition, topicRange.getStartOffset().getTopicOffset(),
+                topicRange.getNumberOfMessages(), timeout).limit(topicRange.getNumberOfMessages())
+                .map(record -> index.getAndIncrement() == 0 ?
+                     MessageUtils.formatMessage(messageConfig,
+                        new String(record.get()).substring(topicRange.getStartOffset().getOffsetFromStartMessage()),
+                        topicRange.getStartOffset().getOffsetFromStartMessage() != 0).getBytes():
+                     MessageUtils.formatMessage(messageConfig, new String(record.get()), false).getBytes())
                 .reduce(ArrayUtils::addAll);
-    }
-
-    private String formatMessage(MessageConfig messageConfig, String message) {
-        return String.format("%s%s%s%s",
-                messageConfig.getStart(), message, messageConfig.getStop(), messageConfig.getSeparator());
     }
 
     /**
