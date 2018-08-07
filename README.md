@@ -215,30 +215,3 @@ drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
 drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
 ```
-
-# Issues to be Solved
-
-The current system still has some glaring deficiencies:
-
-- The current system uses a simulated stream instead of a real
-  one. This facilitates debugging but isn't realistic. Currently, any
-  file that has a name like `*.st` is treated as a simulated stream
-  and is assumed to contain JSON data consisting of a list of JSON
-  objects. Each object has two fields, `topic` and `messages` and is
-  assumed to contain the data that would normally be in the stream. In
-  the simulated stream, one element of the list in the `messages`
-  field is released each second after the file system is started.
-
-- In the current system, each stream is viewed as a directory of
-  topics. Each topic contains messages separated by a delimiter
-  string. In the real system, each topic should probably be better
-  considered a directory of partitions. Also, the convention of using
-  a delimiter string should be augmented with the ability to use other
-  serialization for messages, most importantly a byte-count, bytes
-  sequence.
-
-- Not all operations are currently supported. As an example, unlink
-  applied to a stream should cause a stream delete, applied to a topic
-  should delete the topic, and applied to a partition should cause an
-  error.
-
