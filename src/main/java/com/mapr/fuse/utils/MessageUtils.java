@@ -1,8 +1,11 @@
 package com.mapr.fuse.utils;
 
 import com.mapr.fuse.dto.MessageConfig;
+import lombok.experimental.UtilityClass;
 
+@UtilityClass
 public class MessageUtils {
+
     public static int getSeparatorsLength(MessageConfig messageConfig) {
         return (messageConfig.getSeparator() + messageConfig.getStart() + messageConfig.getStop()).getBytes().length;
     }
