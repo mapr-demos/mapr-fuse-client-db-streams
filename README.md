@@ -33,7 +33,7 @@ $ cd mapr-fuse-client-db-streams
 Build a project
 
 ```bash
-$ gradle clean shadowJar
+$ ./gradlew clean shadowJar
 ```
 
 Create stream with config (required)
