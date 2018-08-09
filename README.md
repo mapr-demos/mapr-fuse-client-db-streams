@@ -69,8 +69,7 @@ Start the file system and mount <your_folder> as a local directory (<your_folder
 $ java -jar mapr-fue-client-db-streams/build/libs/mapr-fuse-client-db-streams-1.0-SNAPSHOT-all.jar ~/<your_folder> ~/tx
 ```
 
-* Check out the contents of `~/<your_folder>` folder. Here you can create a stream. For this purposes you need
-to create folder with a name like `*.st`
+* Check out the contents of `~/<your_folder>` folder. Here you can create a stream. For this purposes you need to create stream and folder.
 
 ```bash
 $ hadoop fs -ls /
@@ -80,6 +79,7 @@ drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
 drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
 drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
+$ maprcli stream create -path /films.st
 $ mkdir your_folder/films.st
 $ ll your_folder/
 total 0
