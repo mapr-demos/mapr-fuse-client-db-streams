@@ -138,12 +138,11 @@ public class StreamFuse extends FuseStubFS {
     public int mkdir(final String path, final long mode) {
         Path fullPath = getFullPath(root, path);
         log.info("mkdir for -> {}", fullPath);
-        if (isMatchPattern(fullPath, STREAM_PATTERN)) {
-            Files.createDirectory(fullPath);
-            adminService.createStream(path);
-        } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
+        if (isMatchPattern(fullPath, TOPIC_PATTERN) &&
+                adminService.streamExists(getStreamName(fullPath.getParent()))) {
             adminService.createTopic(getStreamName(fullPath.getParent()), fullPath.getFileName().toString());
-        } else if (isMatchPattern(fullPath, PARTITION_PATTERN)) {
+        } else if (isMatchPattern(fullPath, PARTITION_PATTERN) && adminService.streamExists(getStreamName(
+                fullPath.getParent().getParent()))) {
             return -1;
         } else {
             Files.createDirectory(fullPath);
@@ -156,10 +155,10 @@ public class StreamFuse extends FuseStubFS {
     public int rmdir(final String path) {
         Path fullPath = getFullPath(root, path);
         log.info("rmdir for -> {}", fullPath);
-        if (isMatchPattern(fullPath, STREAM_PATTERN)) {
-            Files.deleteIfExists(fullPath);
+        if (isMatchPattern(fullPath, STREAM_PATTERN) && adminService.streamExists(getStreamName(fullPath))) {
             adminService.removeStream(getStreamName(fullPath));
-        } else if (isMatchPattern(fullPath, TOPIC_PATTERN)) {
+        } else if (isMatchPattern(fullPath, TOPIC_PATTERN) &&
+                adminService.streamExists(getStreamName(fullPath.getParent()))) {
             adminService.removeTopic(getStreamName(fullPath.getParent()),
                     fullPath.getFileName().toString());
         }

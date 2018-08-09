@@ -20,6 +20,11 @@ public class AdminTopicService {
     }
 
     @SneakyThrows
+    public boolean streamExists(final String stream) {
+        return admin.streamExists(stream);
+    }
+
+    @SneakyThrows
     public Set<String> getTopicNames(final String streamPath) {
         return new HashSet<>(admin.listTopics(streamPath));
     }
