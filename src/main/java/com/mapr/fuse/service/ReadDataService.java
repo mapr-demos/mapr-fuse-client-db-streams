@@ -23,15 +23,17 @@ public class ReadDataService {
     private ConcurrentHashMap<TopicPartition, LinkedList<Integer>> topicSizeData;
     private MessageConfig messageConfig;
 
+    private final static String MESSAGE_CONFIG_TOPIC = ".configuration";
+
     public ReadDataService() {
         messageConfig = new MessageConfig();
         topicReader = new TopicReader();
         topicSizeData = new ConcurrentHashMap<>();
     }
 
-    public Integer requestTopicSizeData(final String topicName, final Integer partitionId) {
+    public Integer requestTopicSizeData(final String stream, final String topicName, final Integer partitionId) {
         TopicPartition partition = new TopicPartition(topicName, partitionId);
-        updateMessageConfig();
+        updateMessageConfig(stream);
         updatePartitionSize(partition);
 
         return topicSizeData.get(partition).stream()
@@ -53,9 +55,9 @@ public class ReadDataService {
     }
 
     @SneakyThrows
-    public MessageConfig getLatestConfig() {
-        Bytes record = topicReader.readPartition(new TopicPartition("/fuse_config:message_config", 0),
-                0, 200L).reduce((first, second) -> second).orElse(null);
+    public MessageConfig getLatestConfig(String stream) {
+        Bytes record = topicReader.readPartition(new TopicPartition(String.format("%s:%s", stream, MESSAGE_CONFIG_TOPIC),
+                        0), 0, 200L).reduce((first, second) -> second).orElse(null);
         ObjectMapper mapper = new ObjectMapper();
         if (Objects.isNull(record)) {
             return new MessageConfig();
@@ -73,8 +75,8 @@ public class ReadDataService {
                         .addLast(record.get().length));
     }
 
-    private void updateMessageConfig() {
-        messageConfig = getLatestConfig();
+    private void updateMessageConfig(String stream) {
+        messageConfig = getLatestConfig(stream);
     }
 
     private Optional<byte[]> readAndFormat(final TopicPartition partition, final TopicRange topicRange, final long timeout) {

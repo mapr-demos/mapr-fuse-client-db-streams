@@ -109,7 +109,7 @@ public class StreamFuse extends FuseStubFS {
     private int getPartitionSize(Path fullPath) {
         String stream = getStreamName(fullPath.getParent().getParent());
         String topic = getTopicName(fullPath.getParent());
-        return tdService.requestTopicSizeData(transformToTopicName(stream, topic),
+        return tdService.requestTopicSizeData(stream, transformToTopicName(stream, topic),
                 getPartitionId(fullPath));
     }
 

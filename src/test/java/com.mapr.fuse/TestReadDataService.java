@@ -47,6 +47,8 @@ public class TestReadDataService {
     public final static int PARTITION = 1;
     public List<String> messageList;
 
+    private final static String MESSAGE_CONFIG_STREAM= "/fuse_config";
+
     @Before
     public void init() throws Exception {
         messageConfig = new MessageConfig("START", "END", "|", true);
@@ -55,7 +57,7 @@ public class TestReadDataService {
         byte[] configArray = new ObjectMapper().writeValueAsBytes(messageConfig);
         Stream<Bytes> configStream = Stream.of(new Bytes(configArray));
 
-        when(topicReader.readPartition(ArgumentMatchers.eq(new TopicPartition("/fuse_config:message_config", 0)),
+        when(topicReader.readPartition(ArgumentMatchers.eq(new TopicPartition("/fuse_config:.configuration", 0)),
                 anyLong(), anyLong())).thenReturn(configStream);
 
         when(topicReader.readPartition(ArgumentMatchers.eq(new TopicPartition(TOPIC_NAME, PARTITION)),
@@ -67,7 +69,7 @@ public class TestReadDataService {
 
     @Test
     public void testGetLatestConfig() {
-        MessageConfig messageConfigFromService = readDataService.getLatestConfig();
+        MessageConfig messageConfigFromService = readDataService.getLatestConfig("/fuse_config");
 
         Assert.assertEquals(messageConfig, messageConfigFromService);
 
@@ -82,12 +84,12 @@ public class TestReadDataService {
                 .collect(Collectors.joining());
 
         Assert.assertEquals(Integer.valueOf(resultMessage.getBytes().length),
-                readDataService.requestTopicSizeData(TOPIC_NAME, PARTITION));
+                readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION));
     }
 
     @Test
     public void testReadRequiredBytesFromTopicPartition() {
-        readDataService.requestTopicSizeData(TOPIC_NAME, PARTITION);
+        readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         String resultMessage = messageList.stream().map(msg ->
                 MessageUtils.formatMessage(messageConfig, msg, false))
@@ -101,7 +103,7 @@ public class TestReadDataService {
 
     @Test
     public void testReadRequiredBytesFromTopicPartitionWithStartCutoff() {
-        readDataService.requestTopicSizeData(TOPIC_NAME, PARTITION);
+        readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         AtomicInteger index = new AtomicInteger();
 
@@ -119,7 +121,7 @@ public class TestReadDataService {
 
     @Test
     public void testReadRequiredBytesFromTopicPartitionWithEndCutoff() {
-        readDataService.requestTopicSizeData(TOPIC_NAME, PARTITION);
+        readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         String resultMessage = messageList.stream().map(msg ->
                 MessageUtils.formatMessage(messageConfig, msg, false))
@@ -133,7 +135,7 @@ public class TestReadDataService {
 
     @Test
     public void testReadRequiredBytesFromTopicPartitionWithStartAndEndCutoff() {
-        readDataService.requestTopicSizeData(TOPIC_NAME, PARTITION);
+        readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         AtomicInteger index = new AtomicInteger();
 
