@@ -33,16 +33,58 @@ $ cd mapr-fuse-client-db-streams
 Build a project
 
 ```bash
-$ gradle clean shadowJar
+$ ./gradlew clean jarsh
 ```
 
-Create stream with config (required)
+Now, you can find an executable sh in a build/libs folder
+
 ```bash
-$ maprcli stream create -path /fuse_config
-$ maprcli stream topic create -path /fuse_config -topic message_config
+$ ll build/libs/
+total 265140
+drwxrwxr-x 2 mapr mapr      4096 Aug 15 17:45  ./
+drwxrwxr-x 6 mapr mapr      4096 Aug 15 17:45  ../
+-rw-rw-r-- 1 mapr mapr  26314453 Aug 15 17:45  mapr-fuse-client-db-streams-1.0-SNAPSHOT.jar
+-rw-rw-r-- 1 mapr mapr 122588232 Aug 15 17:45  mapr-fuse-client-db-streams-execjar-1.0-SNAPSHOT.jar
+-rwxrw-r-- 1 mapr mapr 122588620 Aug 15 17:45 'value: mapr-fuse-client-db-streams.sh'*
 ```
 
-If the topic is empty will be used default settings
+Copy `'value: mapr-fuse-client-db-streams.sh'` to your folder and make it executable
+
+```bash
+$ cp 'value: mapr-fuse-client-db-streams.sh' mirage
+$ chmod +x mirage
+```
+
+Mount NFS to MapR-FS to `/mapr` folder
+
+Start the file system and mount `<your_folder>` (must exist) as a local directory
+
+```bash
+$ sudo ./mirage /mapr/<cluster_name> ~/<your_folder>
+```
+
+* Check out the contents of `~/<your_folder>` folder. Here you can create streams and topics. You should be root for working with `<your_folder>`. Root should be able to create streams and topics via `maprcli`.
+
+```bash
+$ sudo ll your_folder
+total 0
+drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /apps
+drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
+drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
+drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
+drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
+$ sudo maprcli stream create -path /films
+$ sudo ll your_folder/
+total 0
+drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /apps
+drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
+tr--------   - mapr mapr          3 2018-07-16 13:47 /films
+drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
+drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
+drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
+```
+* Each stream has configuration topic `.configuration`. If the topic is empty will be used default settings
+
 ```
 start: ''
 stop: ''
@@ -50,56 +92,17 @@ separator: ''
 count: false
 ```
 
-Or you can specify custom settings. Send to /fuse_config:message_config message in this format
+Or you can specify custom settings. Send to `/<stream_name>:.configuratio` message in this format
 ```bash
 {"start": "START_MESS","stop": "END_MESS","separator": "\n","size": false}
-```
-
-Now, you can find an executable jar in a build/libs folder
-
-```bash
-$ ll build/libs/
-total 122748
--rw-rw-r-- 1 mapr mapr 125687568 Jul 16 14:30 mapr-fuse-client-db-streams-1.0-SNAPSHOT-all.jar
-```
-
-Start the file system and mount <your_folder> as a local directory (<your_folder> and <tx> must exist)
-
-```bash
-$ java -jar mapr-fue-client-db-streams/build/libs/mapr-fuse-client-db-streams-1.0-SNAPSHOT-all.jar ~/<your_folder> ~/tx
-```
-
-* Check out the contents of `~/<your_folder>` folder. Here you can create a stream. For this purposes you need to create stream and folder.
-
-```bash
-$ hadoop fs -ls /
-Found 5 items
-drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /apps
-drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
-drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
-drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
-drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
-$ maprcli stream create -path /films.st
-$ mkdir your_folder/films.st
-$ ll your_folder/
-total 0
-drwxrwxr-x 2 mapr mapr    4096 Jul 11 12:13 films.st
-$ hadoop fs -ls /
-Found 6 items
-drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /apps
-drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
-tr--------   - mapr mapr          3 2018-07-16 13:47 /films.st
-drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
-drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
-drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
 ```
 
 * Now you can create topic for this stream by creating folder in the stream folder
 
 ```bash
-$ ll your_folder/films.st
+$ sudo ll your_folder/films
 total 0
-$ maprcli stream topic list -path /films.st -json
+$ sudo maprcli stream topic list -path /films -json
 {
 	"timestamp":1531753300025,
 	"timeofday":"2018-07-16 03:01:40.025 GMT+0000 PM",
@@ -109,11 +112,11 @@ $ maprcli stream topic list -path /films.st -json
 
 	]
 }
-$ mkdir your_folder/films.st/comedy
-$ ll your_folder/films.st
+$ sudo mkdir your_folder/films/comedy
+$ sudo ll your_folder/films
 total 0
 dr-------- 2 mapr mapr 4096 Jul 11 12:13 comedy
-$ maprcli stream topic list -path /films.st -json
+$ sudo maprcli stream topic list -path /films -json
 {
 	"timestamp":1531753472714,
 	"timeofday":"2018-07-16 03:04:32.714 GMT+0000 PM",
@@ -135,7 +138,7 @@ $ maprcli stream topic list -path /films.st -json
 * When you create a topic one partition will be created by default
 
 ```bash
-$ ll your_folder/films.st/comedy
+$ sudo ll your_folder/films/comedy
 total 0
 -r-------- 1 mapr mapr 0 Jul 11 12:13 0
 ```
@@ -143,7 +146,7 @@ total 0
 *After this, you can read the partition. 
 
 ```bash
-$ cat your_folder/films.st/comedy/0
+$ sudo cat your_folder/films/comedy/0
 START_MESS {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
 START_MESS {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
 START_MESS {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
@@ -160,20 +163,20 @@ START_MESS {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
 * Also, you can read this partition in real time.
 
 ```bash
-$ tail -f your_folder/films.st/comedy/0
+$ sudo tail -f your_folder/films/comedy/0
 ```
 
 * Or read some concrete bytes from the partition.
 
 ```bash
-$ dd skip=8192 count=100 bs=1 if=your_folder/films.st/comedy/0
+$ sudo dd skip=8192 count=100 bs=1 if=your_folder/films/comedy/0
 ```
 
 * Or you can append new messages by typing for example
 
 ```bash
-$ echo '{"type": "test", "t": 1532098619.488, "k": 301}' >> your_folder/films.st/comedy/0
-$ cat your_folder/films.st/comedy/0
+$ sudo echo '{"type": "test", "t": 1532098619.488, "k": 301}' >> your_folder/films/comedy/0
+$ sudo cat your_folder/films/comedy/0
 START_MESS {"type": "test", "t": 1531741609.159, "k": 0} END_MESS
 START_MESS {"type": "test", "t": 1531741609.424, "k": 1} END_MESS
 START_MESS {"type": "test", "t": 1531741609.675, "k": 2} END_MESS
@@ -191,10 +194,10 @@ START_MESS {"type": "test", "t": 1532098619.488, "k": 301} END_MESS
 * Also you can remove topic or stream.
 
 ```bash
-$ rmdir your_folder/films.st/comedy
-$ ll your_folder/films.st
+$ sudo rmdir your_folder/films/comedy
+$ sudo ll your_folder/films
 total 0
-$ maprcli stream topic list -path /films.st -json
+$ sudo maprcli stream topic list -path /films -json
 {
   	"timestamp":1531753300025,
   	"timeofday":"2018-07-16 03:01:40.025 GMT+0000 PM",
@@ -204,11 +207,9 @@ $ maprcli stream topic list -path /films.st -json
   
   	]
 }
-$ rmdir your_folder/films.st
-$ ll your_folder/
+$ sudo rmdir your_folder/films
+$ sudo ll your_folder/
 total 0
-$ hadoop fs -ls /
-Found 5 items
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /apps
 drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
 drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
