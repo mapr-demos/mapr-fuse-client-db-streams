@@ -4,7 +4,7 @@ The idea for this project is to implement a FUSE file system that
 allows streams (as in MapR ES streams) to appear as directories of
 topics, thus allowing POSIX API access to the contents of the stream.
 
-By implementing a first prototype in Python as an overlay on top of
+By implementing a first prototype in Java as an overlay on top of
 either a FUSE or NFS mount of a MapR FS file system, we can prove out
 the concept and experiment with API changes in a relatively simple
 fashion without any changes to the current MapR FUSE client.
@@ -55,16 +55,19 @@ $ cp 'value: mapr-fuse-client-db-streams.sh' mirage
 $ chmod +x mirage
 ```
 
-Mount NFS to MapR-FS to `/mapr` folder
+Mount MapR-FS as `/mapr` (this is the standard way that MapR FS is mounted either via FUSE or NFS)
 
-Start the file system and mount `<your_folder>` (must exist) as a local directory
+You should be able to see `/mapr/<cluster_name>` containing the contents of your cluster.
+
+Start the mirage file system and mount it as `<your_folder>` (must exist already) 
 
 ```bash
 $ sudo ./mirage /mapr/<cluster_name> ~/<your_folder>
 ```
 
-* Check out the contents of `~/<your_folder>` folder. Here you can create streams and topics. You should be root for working with `<your_folder>`. Root should be able to create streams and topics via `maprcli`.
+* Now check out the contents of `~/<your_folder>` folder. It should look nearly identical to `/mapr/<cluster_name>`. Here you can create streams and topics. You should be root for working with the top-level of `<your_folder>`. Root should also be able to create streams and topics via `maprcli`.
 
+For example, suppose we create a stream called `films` in the top-level directory:
 ```bash
 $ sudo ll your_folder
 total 0
@@ -73,7 +76,7 @@ drwxr-xr-x   - mapr mapr          0 2018-05-10 12:48 /opt
 drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
 drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
-$ sudo maprcli stream create -path /films
+$ sudo maprcli stream create -path /mapr/<cluster_name>/films
 $ sudo ll your_folder/
 total 0
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /apps
@@ -83,7 +86,9 @@ drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
 drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
 ```
-* Each stream has configuration topic `.configuration`. If the topic is empty will be used default settings
+As you see, this new stream appears with some kind of strange permissions.
+
+* Each stream has a magical configuration topic called `.configuration`. If you write to this topic, you can set various parameters like strings that prepended or appended to each message and whether a byte count should be included. If the `.configuration` topic is empty then these default settings will be used.
 
 ```
 start: ''
@@ -91,18 +96,20 @@ stop: ''
 separator: ''
 count: false
 ```
+This isn't very useful, however, since we won't know for sure when one message ends and another begins.
 
-Or you can specify custom settings. Send to `/<stream_name>:.configuratio` message in this format
+This can be changed with custom settings. Send a message in the following form to `/<stream_name>:.configuration` 
 ```bash
 {"start": "START_MESS","stop": "END_MESS","separator": "\n","size": false}
 ```
+If your messages are composed of JSON messages in text form and you know that there are no new lines in the messages, then it would be common to set the `start` and `stop` messages to empty strings and set the separator to `\n`. In this example, we have set the start and stop strings to non-empty strings so they can be seen. If you have a binary message format, it would be common to set `size` to `true` and use a distinctive `stop` string. The rational for using a stop string is that if you seek to some random point in a partition, you can scan to the next instance of your stop string and check to see if a valid message follows by looking at putative byte count (four bytes, big endian) to see if you find the stop string again after that many bytes. This is necessary because there is no provision in a file API for marking record boundaries out-of-band.
 
-* Now you can create topic for this stream by creating folder in the stream folder
+At this point, you can verify that there are no topics for this stream yet either by listing the contents of `your_folder` or by using a maprcli command to list the topics in the stream.
 
 ```bash
 $ sudo ll your_folder/films
 total 0
-$ sudo maprcli stream topic list -path /films -json
+$ sudo maprcli stream topic list -path /mapr/<cluster_name>/films -json
 {
 	"timestamp":1531753300025,
 	"timeofday":"2018-07-16 03:01:40.025 GMT+0000 PM",
@@ -112,6 +119,9 @@ $ sudo maprcli stream topic list -path /films -json
 
 	]
 }
+```
+We can create a topic using `mkdir` on the stream via the mirage file system. This topic also shows up in the actual stream.
+```bash
 $ sudo mkdir your_folder/films/comedy
 $ sudo ll your_folder/films
 total 0
@@ -135,15 +145,14 @@ $ sudo maprcli stream topic list -path /films -json
 }
 ```
 
-* When you create a topic one partition will be created by default
-
+When you create a topic one partition will be created by default and it appears as a file inside the topic directory.
 ```bash
 $ sudo ll your_folder/films/comedy
 total 0
 -r-------- 1 mapr mapr 0 Jul 11 12:13 0
 ```
 
-*After this, you can read the partition. 
+At this point, you can read or write to the partition using standard file operations. If a program is writing messages to the stream, we might see this:
 
 ```bash
 $ sudo cat your_folder/films/comedy/0
@@ -160,19 +169,19 @@ START_MESS {"type": "test", "t": 1531741611.43, "k": 9} END_MESS
 START_MESS {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
 ```
 
-* Also, you can read this partition in real time.
+Also, we can watch this partition grow in real time.
 
 ```bash
 $ sudo tail -f your_folder/films/comedy/0
 ```
 
-* Or read some concrete bytes from the partition.
+Or read from particular byte offsets in the partition. These byte offsets include the start and end strings and any byte counts, of course.
 
 ```bash
 $ sudo dd skip=8192 count=100 bs=1 if=your_folder/films/comedy/0
 ```
 
-* Or you can append new messages by typing for example
+New messages can be created by writing to the partition directly using standard file operations. Each distinct write forms a message.
 
 ```bash
 $ sudo echo '{"type": "test", "t": 1532098619.488, "k": 301}' >> your_folder/films/comedy/0
@@ -191,7 +200,7 @@ START_MESS {"type": "test", "t": 1531741611.681, "k": 10} END_MESS
 START_MESS {"type": "test", "t": 1532098619.488, "k": 301} END_MESS
 ```
 
-* Also you can remove topic or stream.
+We can remove topics or streams, but we can't modify partitions.
 
 ```bash
 $ sudo rmdir your_folder/films/comedy
