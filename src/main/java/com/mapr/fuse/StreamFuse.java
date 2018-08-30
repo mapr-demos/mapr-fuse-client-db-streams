@@ -22,6 +22,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -344,8 +345,9 @@ public class StreamFuse extends FuseStubFS {
         try {
             if (isStream(fullPath)) {
                 log.info("  found stream at {}", fullPath);
-                adminService.getTopicNames(getStreamName(fullPath))
-                        .forEach(x -> {log.info("   topic {}", x);filter.apply(buf, x, null, 0);});
+                Set<String> topicNames = adminService.getTopicNames(getStreamName(fullPath));
+                topicNames.forEach(x -> log.info("  {}", x));
+                topicNames.forEach(x -> filter.apply(buf, x, null, 0));
                 return 0;
             } else if (isTopic(fullPath)) {
                 log.info("  found topic at {}", fullPath);
