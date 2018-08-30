@@ -345,7 +345,7 @@ public class StreamFuse extends FuseStubFS {
             if (isStream(fullPath)) {
                 log.info("  found stream at {}", fullPath);
                 adminService.getTopicNames(getStreamName(fullPath))
-                        .forEach(x -> filter.apply(buf, x, null, 0));
+                        .forEach(x -> {log.info("   topic {}", x);filter.apply(buf, x, null, 0);});
                 return 0;
             } else if (isTopic(fullPath)) {
                 log.info("  found topic at {}", fullPath);
