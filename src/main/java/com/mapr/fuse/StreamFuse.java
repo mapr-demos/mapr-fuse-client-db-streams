@@ -345,13 +345,14 @@ public class StreamFuse extends FuseStubFS {
         try {
             if (isStream(fullPath)) {
                 log.info("  found stream at {}", fullPath);
-                Set<String> topicNames = adminService.getTopicNames(getStreamName(fullPath));
+                Set<String> topicNames = adminService.getTopicNames(fullPath.toString());
                 topicNames.forEach(x -> log.info("  {}", x));
                 topicNames.forEach(x -> filter.apply(buf, x, null, 0));
                 return 0;
             } else if (isTopic(fullPath)) {
                 log.info("  found topic at {}", fullPath);
-                int numberOfPartitions = adminService.getTopicPartitions(getStreamName(fullPath.getParent()), getTopicName(fullPath));
+                int numberOfPartitions = adminService.getTopicPartitions(
+                        fullPath.getParent().toString(), fullPath.getFileName().toString());
                 for (int i = 0; i < numberOfPartitions; i++) {
                     filter.apply(buf, Integer.toString(i), null, 0);
                 }
