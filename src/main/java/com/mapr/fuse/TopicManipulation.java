@@ -8,7 +8,7 @@ import java.io.IOException;
 /**
  * Do some simple stream manipulations to make sure we understand the library
  */
-public class TestTopicManipulation {
+public class TopicManipulation {
     public static void main(String[] args) throws IOException {
         Admin admin = Streams.newAdmin(null);
         admin.createStream("/foo", Streams.newStreamDescriptor());
