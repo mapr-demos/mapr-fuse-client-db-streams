@@ -90,14 +90,17 @@ public class StreamFuse extends FuseStubFS {
 
         try {
             if (isStream(fullPath)) {
+                log.info("   {} is a stream", fullPath);
                 // TODO this needs to be more subtle about which directory to probe
                 setupAttrs("/", stat);
                 stat.st_mode.set(S_IFDIR + S_IRUSR);
             } else if (isTopic(fullPath)) {
                 // TODO this needs to be more subtle about which directory to probe
+                log.info("   {} is a topic", fullPath);
                 setupAttrs("/", stat);
                 stat.st_mode.set(S_IFDIR + S_IRUSR);
             } else if (isPartition(fullPath)) {
+                log.info("   {} is a partition", fullPath);
                 if (!isPartitionExist(fullPath.getParent(), Integer.parseInt(fullPath.getFileName().toString()))) {
                     return EEXIST;
                 }
@@ -106,6 +109,7 @@ public class StreamFuse extends FuseStubFS {
                 stat.st_nlink.set(1);
                 stat.st_size.set(getPartitionSize(fullPath));
             } else {
+                log.info("   {} is something ordinary", fullPath);
                 if (Files.exists(fullPath)) {
                     setupAttrs(path, stat);
                 } else {
@@ -352,8 +356,10 @@ public class StreamFuse extends FuseStubFS {
                 return 0;
             }
         } catch (AccessDeniedException e) {
+            log.info("Permission denied for {}", fullPath);
             return EACCES;
         } catch (IOException e) {
+            log.info("I/O error {}", fullPath);
             return EIO;
         }
 
