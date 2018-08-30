@@ -2,6 +2,7 @@ package com.mapr.fuse;
 
 import com.mapr.streams.Admin;
 import com.mapr.streams.Streams;
+import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
 
@@ -10,7 +11,7 @@ import java.io.IOException;
  */
 public class TopicManipulation {
     public static void main(String[] args) throws IOException {
-        Admin admin = Streams.newAdmin(null);
+        Admin admin = Streams.newAdmin(new Configuration());
         admin.createStream("/foo", Streams.newStreamDescriptor());
         admin.createTopic("/foo", "t1");
         admin.createTopic("/foo", "t2", 3);
