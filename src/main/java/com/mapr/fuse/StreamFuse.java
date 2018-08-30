@@ -154,7 +154,9 @@ public class StreamFuse extends FuseStubFS {
     private boolean isStream(Path file) throws IOException {
         try {
             if (Files.isSymbolicLink(file)) {
+                log.info("Found symbolic link {}", file);
                 Path target = Files.readSymbolicLink(file);
+                log.info("Linked to {}", target);
                 return (TABLE_LINK_PATTERN.matcher(target.getFileName().toString()).matches());
             } else {
                 return false;
@@ -162,6 +164,7 @@ public class StreamFuse extends FuseStubFS {
         } catch (UnsupportedOperationException | NotLinkException e) {
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
+            log.info("Can't access {}", file);
             throw new AccessDeniedException(file.toString());
         }
     }
@@ -364,6 +367,8 @@ public class StreamFuse extends FuseStubFS {
             Arrays.stream(Objects.requireNonNull(file.listFiles()))
                     .map(File::getName)
                     .forEach(x -> filter.apply(buf, x, null, 0));
+        } else {
+            log.info("Can't happen... neither fish nor fowl in readdir for {}", fullPath);
         }
         return 0;
     }
