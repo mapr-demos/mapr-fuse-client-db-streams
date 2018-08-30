@@ -18,6 +18,13 @@ fashion without any changes to the current MapR FUSE client.
 
 # How to run the system
 
+Get pre-requisites
+
+```bash
+# apt-get update
+# apt-get install -y git gradle fuse
+```
+
 Clone the repo into the cluster
 
 ```bash
@@ -225,3 +232,7 @@ drwxrwxrwx   - mapr mapr          0 2018-05-10 12:44 /tmp
 drwxr-xr-x   - mapr mapr          3 2018-05-14 12:10 /user
 drwxr-xr-x   - mapr mapr          1 2018-05-10 12:44 /var
 ```
+
+## Limitations
+
+Currently, this system doesn't seem to compile on a Mac. Don't know why it is hard to resolve `one-jar`. Works fine on Linux.
