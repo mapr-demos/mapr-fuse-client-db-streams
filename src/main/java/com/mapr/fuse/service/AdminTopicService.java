@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -30,8 +31,8 @@ public class AdminTopicService {
     }
 
     @SneakyThrows
-    public int getTopicPartitions(final String stream, final String topic) {
-        return admin.getTopicDescriptor(stream, topic).getPartitions();
+    public int getTopicPartitions(final Path stream, final String topic) {
+        return admin.getTopicDescriptor(stream.toString(), topic).getPartitions();
     }
 
     @SneakyThrows
