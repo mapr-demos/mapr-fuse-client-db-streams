@@ -102,10 +102,15 @@ public class StreamFuse extends FuseStubFS {
                 stat.st_mode.set(S_IFDIR + S_IRUSR);
             } else if (isPartition(fullPath)) {
                 log.info("   {} is a partition", fullPath);
-                if (!isPartitionExist(fullPath.getParent(), Integer.parseInt(fullPath.getFileName().toString()))) {
+                int partitionId = Integer.parseInt(fullPath.getFileName().toString());
+                Path topic = fullPath.getParent();
+                if (!isPartitionExist(topic, partitionId)) {
                     return EEXIST;
                 }
-                setupAttrs("/", stat);
+                String streamName = topic.getParent().toString();
+                log.info("  Attributes from {} / {} : {}", streamName, topic.getFileName(), partitionId);
+                setupAttrs(streamName, stat);
+                log.info("     stat = {}", stat);
                 stat.st_mode.set(S_IFREG + S_IRUSR);
                 stat.st_nlink.set(1);
                 stat.st_size.set(getPartitionSize(fullPath));
@@ -126,8 +131,8 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private int getPartitionSize(Path fullPath) {
-        String stream = getStreamName(fullPath.getParent().getParent());
-        String topic = getTopicName(fullPath.getParent());
+        String stream = fullPath.getParent().getParent().toString();
+        String topic = fullPath.getParent().toString();
         return tdService.requestTopicSizeData(stream, transformToTopicName(stream, topic),
                 getPartitionId(fullPath));
     }
@@ -363,6 +368,7 @@ public class StreamFuse extends FuseStubFS {
             return EACCES;
         } catch (IOException e) {
             log.info("I/O error {}", fullPath);
+            e.printStackTrace();
             return EIO;
         }
 
