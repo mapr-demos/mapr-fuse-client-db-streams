@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
@@ -35,23 +36,19 @@ public class AdminTopicService {
         return admin.getTopicDescriptor(stream.toString(), topic).getPartitions();
     }
 
-    @SneakyThrows
-    public void createStream(final String stream) {
+    public void createStream(final String stream) throws IOException {
         admin.createStream(stream, Streams.newStreamDescriptor());
     }
 
-    @SneakyThrows
-    public void createTopic(final String stream, final String topic) {
+    public void createTopic(final String stream, final String topic) throws IOException {
         admin.createTopic(stream, topic);
     }
 
-    @SneakyThrows
-    public void removeStream(final String stream) {
+    public void removeStream(final String stream) throws IOException {
         admin.deleteStream(stream);
     }
 
-    @SneakyThrows
-    public void removeTopic(final String stream, final String topic) {
+    public void removeTopic(final String stream, final String topic) throws IOException {
         admin.deleteTopic(stream, topic);
     }
 
