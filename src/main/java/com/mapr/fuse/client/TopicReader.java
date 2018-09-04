@@ -68,7 +68,7 @@ public class TopicReader {
                         closed.set(true);
                     } else continue;
                 }
-                records.addAll(consumerRecords.records(partition));
+                records.addAll(consumerRecords.records(convertToFixedTopicPartion(partition)));
                 currentPosition += consumerRecords.count();
 
                 if (records.size() >= amount || stopwatch.elapsed(TimeUnit.MILLISECONDS) >= timeout) {
@@ -86,5 +86,11 @@ public class TopicReader {
     public Stream<Bytes> readPartition(final TopicPartition partition, final long offset,
                                        final long timeout) {
         return readPartition(partition, offset, 1000L, timeout);
+    }
+
+    private TopicPartition convertToFixedTopicPartion(TopicPartition topicPartition) {
+        String array [] = topicPartition.topic().split("/");
+        String topicName = "/" + array[array.length - 1];
+        return new TopicPartition(topicName, topicPartition.partition());
     }
 }
