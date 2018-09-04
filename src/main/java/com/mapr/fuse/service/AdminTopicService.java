@@ -1,6 +1,7 @@
 package com.mapr.fuse.service;
 
 import com.mapr.streams.Admin;
+import com.mapr.streams.StreamDescriptor;
 import com.mapr.streams.Streams;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,11 @@ public class AdminTopicService {
 
     public void removeTopic(final String stream, final String topic) throws IOException {
         admin.deleteTopic(stream, topic);
+    }
+
+    @SneakyThrows
+    public StreamDescriptor getStreamDescriptor(String stream) {
+        return admin.getStreamDescriptor(stream);
     }
 
 }

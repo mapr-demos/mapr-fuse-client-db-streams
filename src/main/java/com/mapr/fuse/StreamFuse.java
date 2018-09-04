@@ -40,16 +40,6 @@ public class StreamFuse extends FuseStubFS {
 
     private static final Pattern TABLE_LINK_PATTERN = Pattern.compile("mapr::table::[0-9.]+");
 
-
-    enum ObjectType {
-        // a MapR stream, topic or partition
-        STREAM, TOPIC, PARTITION,
-        // a MapR table (not supported yet, but should be detected)
-        TABLE,
-        // conventional file system objects
-        DIRECTORY, FILE, LINK
-    }
-
     private final Path root;
     private ReadDataService tdService;
     private AdminTopicService adminService;
@@ -126,8 +116,8 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private int getPartitionSize(Path fullPath) {
-        String stream = fullPath.getParent().getParent().toString();
-        String topic = fullPath.getParent().toString();
+        String stream = getStreamName(fullPath.getParent().getParent());
+        String topic = getTopicName(fullPath.getParent());
         return tdService.requestTopicSizeData(stream, transformToTopicName(stream, topic),
                 getPartitionId(fullPath));
     }
@@ -141,7 +131,7 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private String getStreamName(Path fullPath) {
-        return String.format("/%s", fullPath.getFileName().toString());
+        return String.format("%s", fullPath.toString());
     }
 
     private String getTopicName(Path fullPath) {
@@ -158,12 +148,13 @@ public class StreamFuse extends FuseStubFS {
             return ObjectType.PARTITION;
         } else if (isStream(file.getParent())) {
             return ObjectType.TOPIC;
-        } else if (isTableLink(file)) {
-            if (adminService.streamExists(file.toString())) {
-                return ObjectType.STREAM;
-            } else {
-                return ObjectType.TABLE;
-            }
+        } else if (isStream(file)) {
+            return ObjectType.STREAM;
+//            if (adminService.streamExists(file.toString())) {
+//                return ObjectType.STREAM;
+//            } else {
+//                return ObjectType.TABLE;
+//            }
         } else if (Files.isDirectory(file, NOFOLLOW_LINKS)) {
             return ObjectType.DIRECTORY;
         } else if (Files.isSymbolicLink(file)) {
@@ -180,7 +171,7 @@ public class StreamFuse extends FuseStubFS {
 
     private boolean isStream(Path file) throws IOException {
         try {
-            return isTableLink(file) && adminService.streamExists(file.toString());
+            return adminService.streamExists(file.toString());
         } catch (UnsupportedOperationException e) {
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
@@ -224,18 +215,21 @@ public class StreamFuse extends FuseStubFS {
                     log.info("   {} is a stream", fullPath);
                     try {
                         // TODO permission bits for streams should be set by interrogating the stream itself
-                        setupAttrs(fullPath, stat);
-                        stat.st_mode.set((stat.st_mode.intValue() + S_IFDIR) & (~S_IFLNK));
+                        setupAttrs(fullPath.getParent(), stat);
+                        stat.st_mode.set(S_IFDIR + S_IRUSR);
                     } catch (Throwable e) {
                         e.printStackTrace();
                         throw e;
                     }
                     return 0;
                 case TOPIC:
-                    setupAttrs(fullPath.getParent(), stat);
-                    log.info("   {} is a topic with attr = {}", fullPath, attributeToString(stat));
-                    stat.st_mode.set((stat.st_mode.intValue() + S_IFDIR) & (~S_IFLNK));
-                    return 0;
+                    if(adminService.getTopicNames(fullPath.getParent().toString()).contains(getTopicName(fullPath))) {
+                        setupAttrs(fullPath.getParent().getParent(), stat);
+                        log.info("   {} is a topic with attr = {}", fullPath, attributeToString(stat));
+                        stat.st_mode.set(S_IFDIR + S_IRUSR);
+                        return 0;
+                    } else
+                        return ErrNo.ENOENT;
                 case PARTITION:
                     log.info("   {} is a partition", fullPath);
                     int partitionId = Integer.parseInt(fullPath.getFileName().toString());
@@ -244,14 +238,14 @@ public class StreamFuse extends FuseStubFS {
                     String topic = topicPath.getFileName().toString();
                     if (!isPartitionExists(stream, topic, partitionId)) {
                         log.info("    Partition does not exist {} / {} / {}", stream, topic, partitionId);
-                        return EEXIST;
+                        return ENOENT;
                     }
                     log.info("  Attributes from {} / {} / {}", stream, topic, partitionId);
-                    setupAttrs(stream, stat);
-                    stat.st_mode.set((stat.st_mode.intValue() + S_IFREG) & (~S_IFLNK));
+                    setupAttrs(stream.getParent(), stat);
+                    stat.st_mode.set(S_IFREG + S_IRUSR);
                     stat.st_nlink.set(1);
                     stat.st_size.set(getPartitionSize(fullPath));
-                    log.info("  stream attributes: {}", attributeToString(stat));
+                    log.info("  partition attributes: {}", attributeToString(stat));
                     return 0;
                 case DIRECTORY:
                 case FILE:
@@ -261,7 +255,7 @@ public class StreamFuse extends FuseStubFS {
                     if (Files.exists(fullPath)) {
                         setupAttrs(fullPath, stat);
                     } else {
-                        return ErrNo.ENOENT;
+                        return ENOENT;
                     }
             }
         } catch (AccessDeniedException e) {
@@ -299,7 +293,7 @@ public class StreamFuse extends FuseStubFS {
         Path fullPath = getFullPath(root, path);
         log.info("mkdir for -> {}", fullPath);
 
-        switch (getObjectType(fullPath)) {
+        switch (getObjectType(fullPath.getParent())) {
             case DIRECTORY:
                 try {
                     Files.createDirectory(fullPath, PosixFilePermissions.asFileAttribute(decodeMode(mode)));
@@ -315,21 +309,6 @@ public class StreamFuse extends FuseStubFS {
                 }
             case STREAM:
                 try {
-                    adminService.createStream(fullPath.toString());
-                    // TODO permissions of stream should be set here
-                    return 0;
-                } catch (NoSuchFileException e) {
-                    log.info("Create stream failed {}", e.getMessage());
-                    return ENOENT;
-                } catch (SecurityException e) {
-                    log.info("Create stream failed {}", e.getMessage());
-                    return EPERM;
-                } catch (IOException e) {
-                    log.info("Create stream failed {}", e.getMessage());
-                    return EIO;
-                }
-            case TOPIC:
-                try {
                     adminService.createTopic(fullPath.getParent().toString(), fullPath.getFileName().toString());
                     return 0;
                 } catch (NoSuchFileException e) {
@@ -342,6 +321,34 @@ public class StreamFuse extends FuseStubFS {
                     log.info("Create topic failed {}", e.getMessage());
                     return EIO;
                 }
+//                try {
+//                    adminService.createStream(fullPath.toString());
+//                    // TODO permissions of stream should be set here
+//                    return 0;
+//                } catch (NoSuchFileException e) {
+//                    log.info("Create stream failed {}", e.getMessage());
+//                    return ENOENT;
+//                } catch (SecurityException e) {
+//                    log.info("Create stream failed {}", e.getMessage());
+//                    return EPERM;
+//                } catch (IOException e) {
+//                    log.info("Create stream failed {}", e.getMessage());
+//                    return EIO;
+//                }
+            case TOPIC:
+//                try {
+//                    adminService.createTopic(fullPath.getParent().toString(), fullPath.getFileName().toString());
+//                    return 0;
+//                } catch (NoSuchFileException e) {
+//                    log.info("Create topic failed {}", e.getMessage());
+//                    return ENOENT;
+//                } catch (SecurityException e) {
+//                    log.info("Create topic failed {}", e.getMessage());
+//                    return EPERM;
+//                } catch (IOException e) {
+//                    log.info("Create topic failed {}", e.getMessage());
+//                    return EIO;
+//                }
             case PARTITION:
                 return EPERM;
             default:
@@ -433,6 +440,8 @@ public class StreamFuse extends FuseStubFS {
                 case DIRECTORY:
                 case FILE:
                     // TODO figure out how to set owner/group by number in Java
+                    Files.setAttribute(fullPath, "unix:uid", uid);
+                    Files.setAttribute(fullPath, "unix:пid", gid);
                     return 0;
 
                 case TABLE:
@@ -456,7 +465,7 @@ public class StreamFuse extends FuseStubFS {
     @Override
     public int truncate(String path, long size) {
         Path fullPath = getFullPath(root, path);
-        log.info("chown for -> {}", fullPath);
+        log.info("truncate for -> {}", fullPath);
 
         try {
             switch (getObjectType(fullPath)) {
