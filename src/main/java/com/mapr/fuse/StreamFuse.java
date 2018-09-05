@@ -171,7 +171,7 @@ public class StreamFuse extends FuseStubFS {
 
     private boolean isStream(Path file) throws IOException {
         try {
-            return adminService.streamExists(file.toString());
+            return Files.isSymbolicLink(file) && adminService.streamExists(file.toString());
         } catch (UnsupportedOperationException e) {
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
