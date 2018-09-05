@@ -274,7 +274,7 @@ public class StreamFuse extends FuseStubFS {
 
     private void decodeOctalDigit(StringBuilder s, long triple) {
         s.append((triple & 4) != 0 ? 'r' : '-');
-        s.append((triple & 2) != 0 ? 'r' : '-');
+        s.append((triple & 2) != 0 ? 'w' : '-');
         s.append((triple & 1) != 0 ? 'x' : '-');
     }
 
