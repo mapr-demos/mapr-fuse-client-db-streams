@@ -439,9 +439,8 @@ public class StreamFuse extends FuseStubFS {
             switch (getObjectType(fullPath)) {
                 case DIRECTORY:
                 case FILE:
-                    // TODO figure out how to set owner/group by number in Java
-                    Files.setAttribute(fullPath, "unix:uid", uid);
-                    Files.setAttribute(fullPath, "unix:пid", gid);
+                    Files.setAttribute(fullPath, "unix:uid", Long.valueOf(uid).intValue());
+                    Files.setAttribute(fullPath, "unix:gid", Long.valueOf(gid).intValue());
                     return 0;
 
                 case TABLE:
