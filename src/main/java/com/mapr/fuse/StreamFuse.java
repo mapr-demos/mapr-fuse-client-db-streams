@@ -470,7 +470,7 @@ public class StreamFuse extends FuseStubFS {
             switch (getObjectType(fullPath)) {
                 case FILE:
                     // TODO probably need attribute here to allow write
-                    try (SeekableByteChannel f = Files.newByteChannel(fullPath)) {
+                    try (SeekableByteChannel f = Files.newByteChannel(fullPath, StandardOpenOption.WRITE)) {
                         f.truncate(size);
                         return 0;
                     }
@@ -546,7 +546,7 @@ public class StreamFuse extends FuseStubFS {
         try {
             switch (getObjectType(fullPath)) {
                 case FILE:
-                    try (SeekableByteChannel f = Files.newByteChannel(fullPath)) {
+                    try (SeekableByteChannel f = Files.newByteChannel(fullPath, StandardOpenOption.WRITE)) {
                         f.position(offset);
                         return f.write(ByteBuffer.wrap(bytesToWrite));
                     }
