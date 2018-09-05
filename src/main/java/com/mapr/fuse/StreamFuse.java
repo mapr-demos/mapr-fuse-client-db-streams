@@ -131,7 +131,7 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private String getStreamName(Path fullPath) {
-        return String.format("%s", fullPath.toString());
+        return fullPath.toString().replace(root.toString(), "");
     }
 
     private String getTopicName(Path fullPath) {
