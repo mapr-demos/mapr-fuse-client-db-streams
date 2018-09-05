@@ -148,13 +148,12 @@ public class StreamFuse extends FuseStubFS {
             return ObjectType.PARTITION;
         } else if (isStream(file.getParent())) {
             return ObjectType.TOPIC;
-        } else if (isStream(file)) {
-            return ObjectType.STREAM;
-//            if (adminService.streamExists(file.toString())) {
-//                return ObjectType.STREAM;
-//            } else {
-//                return ObjectType.TABLE;
-//            }
+        } else if (isTableLink(file)) {
+            if (adminService.streamExists(file.toString())) {
+                return ObjectType.STREAM;
+            } else {
+                return ObjectType.TABLE;
+            }
         } else if (Files.isDirectory(file, NOFOLLOW_LINKS)) {
             return ObjectType.DIRECTORY;
         } else if (Files.isSymbolicLink(file)) {
@@ -164,9 +163,10 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
+    @SneakyThrows
     private boolean isTableLink(Path file) {
         return Files.isSymbolicLink(file) &&
-                (TABLE_LINK_PATTERN.matcher(file.getFileName().toString()).matches());
+                (TABLE_LINK_PATTERN.matcher(Files.readSymbolicLink(file).toString()).matches());
     }
 
     private boolean isStream(Path file) throws IOException {
