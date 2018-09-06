@@ -119,6 +119,11 @@ public class AttrsUtils {
         return PosixFilePermissions.fromString(s.toString());
     }
 
+    public void setUidAndGid(Path path, long uid, long gid) throws IOException {
+        Files.setAttribute(path, "unix:uid", Long.valueOf(uid).intValue());
+        Files.setAttribute(path, "unix:gid", Long.valueOf(gid).intValue());
+    }
+
     private void decodeOctalDigit(StringBuilder s, long triple) {
         s.append((triple & 4) != 0 ? 'r' : '-');
         s.append((triple & 2) != 0 ? 'w' : '-');
