@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -33,8 +32,13 @@ public class AdminTopicService {
     }
 
     @SneakyThrows
-    public int getTopicPartitions(final Path stream, final String topic) {
-        return admin.getTopicDescriptor(stream.toString(), topic).getPartitions();
+    public int countTopics(final String streamPath) {
+        return admin.countTopics(streamPath);
+    }
+
+    @SneakyThrows
+    public int getTopicPartitions(final String stream, final String topic) {
+        return admin.getTopicDescriptor(stream, topic).getPartitions();
     }
 
     public void createStream(final String stream) throws IOException {

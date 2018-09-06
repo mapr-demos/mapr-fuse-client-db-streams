@@ -3,6 +3,7 @@ package com.mapr.fuse;
 import com.mapr.fuse.client.TopicWriter;
 import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.ReadDataService;
+import com.mapr.fuse.utils.AttrsUtils;
 import jnr.ffi.Pointer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -20,21 +21,14 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
-import java.util.Formatter;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static com.mapr.fuse.ErrNo.*;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
-import static ru.serce.jnrfuse.struct.FileStat.*;
 
 @Slf4j
 public class StreamFuse extends FuseStubFS {
-
-    private final static String STREAM_PATTERN = "[^/]+$";
-    private final static String TOPIC_PATTERN = "[^/]+/[^/]+$";
-    private final static String PARTITION_PATTERN = "[^/]+/[^/]+/.+";
 
     private final static String TOPIC_NAME_PATTERN = "%s:%s";
 
@@ -80,76 +74,42 @@ public class StreamFuse extends FuseStubFS {
         return root.resolve(partial);
     }
 
-    private String attributeToString(FileStat stat) {
-        if (stat == null) {
-            return "NULL";
-        } else {
-            Formatter buffer = new Formatter();
-            if (stat.st_atim == null) {
-                buffer.format("<null>, ");
-            } else {
-                buffer.format("%.3f, ", stat.st_atim.tv_sec.doubleValue());
-            }
-            if (stat.st_ctim == null) {
-                buffer.format("<null>, ");
-            } else {
-                buffer.format("%.3f, ", stat.st_ctim.tv_sec.doubleValue());
-            }
-            if (stat.st_mtim == null) {
-                buffer.format("<null>, ");
-            } else {
-                buffer.format("%.3f, ", stat.st_mtim.tv_sec.doubleValue());
-            }
-            if (stat.st_mode == null) {
-                buffer.format("<null>, ");
-            } else {
-                buffer.format("%x, ", stat.st_mode.longValue());
-            }
-            if (stat.st_flags == null) {
-                buffer.format("<null>");
-            } else {
-                buffer.format("%x", stat.st_flags.longValue());
-            }
-
-            return buffer.toString();
-        }
-    }
-
-    private int getPartitionSize(Path fullPath) {
-        String stream = getStreamName(fullPath.getParent().getParent());
-        String topic = getTopicName(fullPath.getParent());
+    private int getPartitionSize(String stream, String topic, int partitionId) {
         return tdService.requestTopicSizeData(stream, transformToTopicName(stream, topic),
-                getPartitionId(fullPath));
+                partitionId);
     }
 
     private boolean isPartitionExists(Path path, String topic, Integer partitionId) {
-        return adminService.getTopicPartitions(path, topic) > partitionId;
+        return adminService.getTopicPartitions(path.toString(), topic) > partitionId;
     }
 
-    private boolean isStreamExist(Path fullPath) {
-        return adminService.streamExists(getStreamName(fullPath));
+    private boolean isStreamExists(Path path) {
+        return adminService.streamExists(getStreamName(path));
     }
 
-    private String getStreamName(Path fullPath) {
-        return fullPath.toString().replace(root.toString(), "");
+    private boolean isTopicExists(Path path) {
+        return adminService.getTopicNames(path.getParent().toString()).contains(getTopicName(path));
     }
 
-    private String getTopicName(Path fullPath) {
-        return fullPath.getFileName().toString();
+    private String getStreamName(Path path) {
+        return path.toString().replace(root.toString(), "");
+    }
+
+    private String getTopicName(Path path) {
+        return path.getFileName().toString();
     }
 
     private String transformToTopicName(String stream, String topic) {
         return String.format(TOPIC_NAME_PATTERN, stream, topic);
     }
 
-
     private ObjectType getObjectType(Path file) throws IOException {
-        if (isStream(file.getParent().getParent())) {
+        if (isPartition(file)) {
             return ObjectType.PARTITION;
-        } else if (isStream(file.getParent())) {
+        } else if (isTopic(file)) {
             return ObjectType.TOPIC;
         } else if (isTableLink(file)) {
-            if (adminService.streamExists(file.toString())) {
+            if (isStream(file)) {
                 return ObjectType.STREAM;
             } else {
                 return ObjectType.TABLE;
@@ -171,7 +131,7 @@ public class StreamFuse extends FuseStubFS {
 
     private boolean isStream(Path file) throws IOException {
         try {
-            return Files.isSymbolicLink(file) && adminService.streamExists(file.toString());
+            return Files.isSymbolicLink(file) && isStreamExists(file);
         } catch (UnsupportedOperationException e) {
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
@@ -188,45 +148,28 @@ public class StreamFuse extends FuseStubFS {
         return isTopic(file.getParent());
     }
 
-    private void setupAttrs(Path path, FileStat stat) throws IOException {
-        log.info("setupAttrs for {}", path);
-        BasicFileAttributes basicFileAttributes = Files.readAttributes(path, BasicFileAttributes.class, NOFOLLOW_LINKS);
-
-        stat.st_atim.tv_sec.set(basicFileAttributes.lastAccessTime().to(TimeUnit.SECONDS));
-        stat.st_ctim.tv_sec.set(basicFileAttributes.creationTime().to(TimeUnit.SECONDS));
-        stat.st_mtim.tv_sec.set(basicFileAttributes.lastModifiedTime().to(TimeUnit.SECONDS));
-        stat.st_gid.set((Number) Files.getAttribute(path, "unix:gid"));
-        stat.st_mode.set((Number) Files.getAttribute(path, "unix:mode"));
-        stat.st_nlink.set((Number) Files.getAttribute(path, "unix:nlink"));
-        stat.st_size.set((Number) Files.getAttribute(path, "unix:size"));
-        stat.st_uid.set((Number) Files.getAttribute(path, "unix:uid"));
-
-        log.info("finished setupAttrs for {}", path);
-    }
-
     @Override
     public int getattr(final String path, final FileStat stat) {
         Path fullPath = getFullPath(root, path);
         log.info("Get attr for -> {}", fullPath);
 
+        String streamName;
+
         try {
             switch (getObjectType(fullPath)) {
                 case STREAM:
                     log.info("   {} is a stream", fullPath);
-                    try {
-                        // TODO permission bits for streams should be set by interrogating the stream itself
-                        setupAttrs(fullPath.getParent(), stat);
-                        stat.st_mode.set(S_IFDIR + S_IRUSR);
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        throw e;
-                    }
+                    streamName = getStreamName(fullPath);
+                    AttrsUtils.setupAttrsStream(adminService.getStreamDescriptor(streamName),
+                            adminService.countTopics(streamName), fullPath, stat);
                     return 0;
                 case TOPIC:
-                    if(adminService.getTopicNames(fullPath.getParent().toString()).contains(getTopicName(fullPath))) {
-                        setupAttrs(fullPath.getParent().getParent(), stat);
-                        log.info("   {} is a topic with attr = {}", fullPath, attributeToString(stat));
-                        stat.st_mode.set(S_IFDIR + S_IRUSR);
+                    if(isTopicExists(fullPath)) {
+                        log.info("   {} is a topic", fullPath);
+                        streamName = getStreamName(fullPath.getParent());
+                        AttrsUtils.setupAttrsTopic(adminService.getStreamDescriptor(streamName),
+                                adminService.getTopicPartitions(streamName, getTopicName(fullPath)), fullPath, stat);
+                        log.info("   topic attributes: {}", fullPath, AttrsUtils.attributeToString(stat));
                         return 0;
                     } else
                         return ErrNo.ENOENT;
@@ -234,18 +177,17 @@ public class StreamFuse extends FuseStubFS {
                     log.info("   {} is a partition", fullPath);
                     int partitionId = Integer.parseInt(fullPath.getFileName().toString());
                     Path topicPath = fullPath.getParent();
-                    Path stream = topicPath.getParent();
-                    String topic = topicPath.getFileName().toString();
-                    if (!isPartitionExists(stream, topic, partitionId)) {
-                        log.info("    Partition does not exist {} / {} / {}", stream, topic, partitionId);
+                    Path streamPath = topicPath.getParent();
+                    String topic = getTopicName(topicPath);
+                    streamName = getStreamName(streamPath);
+                    if (!isPartitionExists(streamPath, topic, partitionId)) {
+                        log.info("    Partition does not exist {} / {} / {}", streamPath, topic, partitionId);
                         return ENOENT;
                     }
-                    log.info("  Attributes from {} / {} / {}", stream, topic, partitionId);
-                    setupAttrs(stream.getParent(), stat);
-                    stat.st_mode.set(S_IFREG + S_IRUSR);
-                    stat.st_nlink.set(1);
-                    stat.st_size.set(getPartitionSize(fullPath));
-                    log.info("  partition attributes: {}", attributeToString(stat));
+                    log.info("  Attributes from {} / {} / {}", streamPath, topic, partitionId);
+                    int size = getPartitionSize(streamName, topic, partitionId);
+                    AttrsUtils.setupAttrsPartition(adminService.getStreamDescriptor(streamName), size, fullPath, stat);
+                    log.info("  partition attributes: {}", AttrsUtils.attributeToString(stat));
                     return 0;
                 case DIRECTORY:
                 case FILE:
@@ -253,7 +195,7 @@ public class StreamFuse extends FuseStubFS {
                 case TABLE:
                     log.info("   {} is something ordinary", fullPath);
                     if (Files.exists(fullPath)) {
-                        setupAttrs(fullPath, stat);
+                        AttrsUtils.setupAttrs(fullPath, stat);
                     } else {
                         return ENOENT;
                     }
@@ -272,20 +214,6 @@ public class StreamFuse extends FuseStubFS {
         return 0;
     }
 
-    private void decodeOctalDigit(StringBuilder s, long triple) {
-        s.append((triple & 4) != 0 ? 'r' : '-');
-        s.append((triple & 2) != 0 ? 'w' : '-');
-        s.append((triple & 1) != 0 ? 'x' : '-');
-    }
-
-    private Set<PosixFilePermission> decodeMode(long mode) {
-        StringBuilder s = new StringBuilder();
-        decodeOctalDigit(s, mode >> 6);
-        decodeOctalDigit(s, mode >> 3);
-        decodeOctalDigit(s, mode);
-        return PosixFilePermissions.fromString(s.toString());
-    }
-
     // TODO test
     @Override
     @SneakyThrows
@@ -296,7 +224,7 @@ public class StreamFuse extends FuseStubFS {
         switch (getObjectType(fullPath.getParent())) {
             case DIRECTORY:
                 try {
-                    Files.createDirectory(fullPath, PosixFilePermissions.asFileAttribute(decodeMode(mode)));
+                    Files.createDirectory(fullPath, PosixFilePermissions.asFileAttribute(AttrsUtils.decodeMode(mode)));
                     return 0;
                 } catch (NoSuchFileException e) {
                     return ENOENT;
@@ -321,34 +249,7 @@ public class StreamFuse extends FuseStubFS {
                     log.info("Create topic failed {}", e.getMessage());
                     return EIO;
                 }
-//                try {
-//                    adminService.createStream(fullPath.toString());
-//                    // TODO permissions of stream should be set here
-//                    return 0;
-//                } catch (NoSuchFileException e) {
-//                    log.info("Create stream failed {}", e.getMessage());
-//                    return ENOENT;
-//                } catch (SecurityException e) {
-//                    log.info("Create stream failed {}", e.getMessage());
-//                    return EPERM;
-//                } catch (IOException e) {
-//                    log.info("Create stream failed {}", e.getMessage());
-//                    return EIO;
-//                }
             case TOPIC:
-//                try {
-//                    adminService.createTopic(fullPath.getParent().toString(), fullPath.getFileName().toString());
-//                    return 0;
-//                } catch (NoSuchFileException e) {
-//                    log.info("Create topic failed {}", e.getMessage());
-//                    return ENOENT;
-//                } catch (SecurityException e) {
-//                    log.info("Create topic failed {}", e.getMessage());
-//                    return EPERM;
-//                } catch (IOException e) {
-//                    log.info("Create topic failed {}", e.getMessage());
-//                    return EIO;
-//                }
             case PARTITION:
                 return EPERM;
             default:
@@ -410,7 +311,7 @@ public class StreamFuse extends FuseStubFS {
             switch (getObjectType(fullPath)) {
                 case DIRECTORY:
                 case FILE:
-                    Files.setPosixFilePermissions(fullPath, decodeMode(mode));
+                    Files.setPosixFilePermissions(fullPath, AttrsUtils.decodeMode(mode));
                     return 0;
                 case TABLE:
                 case STREAM:
@@ -639,7 +540,7 @@ public class StreamFuse extends FuseStubFS {
                 case TOPIC:
                     log.info("  found topic at {}", fullPath);
                     int numberOfPartitions = adminService.getTopicPartitions(
-                            fullPath.getParent(), fullPath.getFileName().toString());
+                            fullPath.getParent().toString(), fullPath.getFileName().toString());
                     for (int i = 0; i < numberOfPartitions; i++) {
                         filter.apply(buf, Integer.toString(i), null, 0);
                     }
