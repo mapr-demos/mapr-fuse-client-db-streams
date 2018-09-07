@@ -216,7 +216,8 @@ public class StreamFuse extends FuseStubFS {
                 }
             case STREAM:
                 try {
-                    adminService.createTopic(fullPath.getParent().toString(), fullPath.getFileName().toString());
+                    adminService.createTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
+                            ConvertUtils.getTopicName(fullPath));
                     return 0;
                 } catch (NoSuchFileException e) {
                     log.info("Create topic failed {}", e.getMessage());
@@ -259,7 +260,7 @@ public class StreamFuse extends FuseStubFS {
                 }
             case STREAM:
                 try {
-                    adminService.removeStream(fullPath.toString());
+                    adminService.removeStream(ConvertUtils.getStreamName(root, fullPath));
                 } catch (IOException e) {
                     log.info("Remove stream failed {}", e.getMessage());
                     return EIO;
