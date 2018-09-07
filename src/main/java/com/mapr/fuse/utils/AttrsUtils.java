@@ -66,7 +66,7 @@ public class AttrsUtils {
     public void setupAttrsPartition(StreamDescriptor stream, int size, Path path, FileStat stat) throws IOException {
         log.info("setupAttrs for {}", path);
 
-        setupBasicAttrs(path.getParent().getParent(), stat);
+        setupBasicAttrs(path.getParent().getParent().getParent(), stat);
         setupPermissionsFromStream(stream, stat);
 
         stat.st_size.set(size);
