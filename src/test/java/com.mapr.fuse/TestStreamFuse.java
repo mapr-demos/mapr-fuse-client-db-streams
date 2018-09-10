@@ -3,6 +3,7 @@ package com.mapr.fuse;
 import com.mapr.fuse.client.TopicWriter;
 import com.mapr.fuse.service.AdminTopicService;
 import com.mapr.fuse.service.ReadDataService;
+import com.mapr.fuse.utils.AttrsUtils;
 import com.mapr.fuse.utils.ConvertUtils;
 import org.junit.*;
 import org.mockito.ArgumentMatchers;
@@ -16,8 +17,11 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
 import static com.mapr.fuse.ErrNo.*;
 import static org.mockito.Mockito.*;
@@ -30,6 +34,7 @@ public class TestStreamFuse {
   public final static String TOPIC_NAME = "topic";
   public final static int PARTITION_ID = 0;
   public final static String FOLDER_NAME = "new_folder";
+  public final static String FILE_NAME = "new_file";
   public StreamFuse fuse;
   public AdminTopicService adminTopicService;
   public Path root = new File(System.getProperty("user.dir")).toPath();
@@ -50,6 +55,7 @@ public class TestStreamFuse {
       stream = root.resolve("stream");
       table = root.resolve("table");
       link = root.resolve("link");
+
       destroy();
       Files.createSymbolicLink(stream, Paths.get("mapr::table::2049.42.1181280"));
       Files.createSymbolicLink(table, Paths.get("mapr::table::2049.42.1181281"));
@@ -62,6 +68,7 @@ public class TestStreamFuse {
       Files.deleteIfExists(table);
       Files.deleteIfExists(link);
       Files.deleteIfExists(root.resolve(FOLDER_NAME));
+      Files.deleteIfExists(root.resolve(FILE_NAME));
   }
 
   @Test
@@ -256,6 +263,21 @@ public class TestStreamFuse {
       result = fuse.rmdir(FOLDER_NAME);
       Assert.assertEquals(0, result);
       Assert.assertFalse(Files.exists(root.resolve(FOLDER_NAME)));
+  }
+
+  @Test
+  public void chmodTest() throws IOException {
+      Path tempFile = Files.createFile(root.resolve(FILE_NAME));
+      int permissionsCode = 511;
+
+      int result = fuse.chmod(FILE_NAME, permissionsCode);
+      Assert.assertEquals(0, result);
+
+      Set<PosixFilePermission> expectedPermissions = AttrsUtils.decodeMode(permissionsCode);
+      Set<PosixFilePermission> permissions = Files.getFileAttributeView(tempFile, PosixFileAttributeView.class)
+              .readAttributes().permissions();
+
+      Assert.assertEquals(expectedPermissions, permissions);
   }
 
   public ReadDataService getReadDataServiceMock() {
