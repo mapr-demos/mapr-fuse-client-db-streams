@@ -26,20 +26,20 @@ public class TestAttrsUtils {
 
     @Test
     public void decodeModeTest() {
-        Set<PosixFilePermission> expexted = new HashSet<>();
-        expexted.add(PosixFilePermission.OWNER_READ);
-        expexted.add(PosixFilePermission.OWNER_WRITE);
-        expexted.add(PosixFilePermission.OWNER_EXECUTE);
-        expexted.add(PosixFilePermission.GROUP_READ);
-        expexted.add(PosixFilePermission.GROUP_WRITE);
-        expexted.add(PosixFilePermission.GROUP_EXECUTE);
-        expexted.add(PosixFilePermission.OTHERS_READ);
-        expexted.add(PosixFilePermission.OTHERS_WRITE);
-        expexted.add(PosixFilePermission.OTHERS_EXECUTE);
+        Set<PosixFilePermission> expected = new HashSet<>();
+        expected.add(PosixFilePermission.OWNER_READ);
+        expected.add(PosixFilePermission.OWNER_WRITE);
+        expected.add(PosixFilePermission.OWNER_EXECUTE);
+        expected.add(PosixFilePermission.GROUP_READ);
+        expected.add(PosixFilePermission.GROUP_WRITE);
+        expected.add(PosixFilePermission.GROUP_EXECUTE);
+        expected.add(PosixFilePermission.OTHERS_READ);
+        expected.add(PosixFilePermission.OTHERS_WRITE);
+        expected.add(PosixFilePermission.OTHERS_EXECUTE);
 
         Set<PosixFilePermission> permissions = AttrsUtils.decodeMode(511);
 
-        Assert.assertEquals(expexted, permissions);
+        Assert.assertEquals(expected, permissions);
     }
 
     @Test
