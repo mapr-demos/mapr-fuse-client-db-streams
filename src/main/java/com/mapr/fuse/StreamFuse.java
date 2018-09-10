@@ -193,7 +193,6 @@ public class StreamFuse extends FuseStubFS {
         return 0;
     }
 
-    // TODO test
     @Override
     @SneakyThrows
     public int mkdir(final String path, final long mode) {
@@ -237,7 +236,6 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // TODO test
     @Override
     @SneakyThrows
     public int rmdir(final String path) {
@@ -282,7 +280,6 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // TODO test
     @Override
     public int chmod(final String path, final long mode) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
@@ -311,7 +308,6 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // TODO check and fix
     @Override
     public int chown(final String path, final long uid, final long gid) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
@@ -341,7 +337,6 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // TODO test
     @Override
     public int truncate(String path, long size) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
@@ -350,7 +345,6 @@ public class StreamFuse extends FuseStubFS {
         try {
             switch (getObjectType(fullPath)) {
                 case FILE:
-                    // TODO probably need attribute here to allow write
                     try (SeekableByteChannel f = Files.newByteChannel(fullPath, StandardOpenOption.WRITE)) {
                         f.truncate(size);
                         return 0;
@@ -373,7 +367,6 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // TODO check and fix
     @Override
     public int open(final String path, final FuseFileInfo fi) {
         String fullPath = ConvertUtils.getFullPath(root, path).toString();
@@ -381,7 +374,6 @@ public class StreamFuse extends FuseStubFS {
         return 0;
     }
 
-    // TODO check and fix
     @Override
     public int read(final String path, final Pointer buf, final long size, final long offset, final FuseFileInfo fi) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
@@ -411,13 +403,16 @@ public class StreamFuse extends FuseStubFS {
         } else {
             log.info("read NORMAL FILE");
             byte[] batchOfBytes = new byte[(int) size];
-            int numOfReadBytes = readPartOfFile(fullPath, batchOfBytes, (int) offset, (int) size);
-            buf.put(0, batchOfBytes, 0, numOfReadBytes);
-            return numOfReadBytes;
+            try {
+                int numOfReadBytes = readPartOfFile(fullPath, batchOfBytes, (int) offset, (int) size);
+                buf.put(0, batchOfBytes, 0, numOfReadBytes);
+                return numOfReadBytes;
+            } catch (RuntimeException ex) {
+                return EIO;
+            }
         }
     }
 
-    // TODO test
     @Override
     public int write(String path, Pointer buf, long size, long offset, FuseFileInfo fi) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
@@ -457,12 +452,9 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // TODO check and fix
     private byte[] validateBytes(byte[] bytesToWrite) {
         return new String(bytesToWrite).replace("\n", "").replace("\r", "").getBytes();
     }
-
-    // TODO check and fix
 
     /**
      * @param fullPath     path to the file
@@ -478,7 +470,6 @@ public class StreamFuse extends FuseStubFS {
             fis.skip(offset);
             numOfReadBytes = fis.read(batchOfBytes, 0, size);
         } catch (IOException e) {
-            // TODO should allow the exception. Caller should convert to error number
             log.error("Problems with reading file");
             throw new RuntimeException(e);
         }
@@ -544,7 +535,6 @@ public class StreamFuse extends FuseStubFS {
         return 0;
     }
 
-    // TODO check and fix
     @Override
     public int access(final String path, final int mask) {
         String fullPath = ConvertUtils.getFullPath(root, path).toString();
