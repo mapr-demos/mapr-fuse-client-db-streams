@@ -525,7 +525,12 @@ public class StreamFuse extends FuseStubFS {
             log.info("Permission denied for {}", fullPath);
             return EACCES;
         } catch (IOException e) {
-            log.info("I/O error {}", fullPath);
+            StringBuilder trace = new StringBuilder();
+            StackTraceElement[] stack = e.getStackTrace();
+            for (int i = 0; i < 3 && i < stack.length; i++) {
+                trace.append(stack[i].toString()).append(" // ");
+            }
+            log.info("I/O error {} {}", fullPath, trace);
             return EIO;
         }
 

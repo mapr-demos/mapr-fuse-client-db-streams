@@ -40,5 +40,4 @@ public class ErrNo {
     public static final int  EDOM      = -33;  /* Math argument out of domain of func */
     public static final int  ERANGE    = -34;  /* Math result not representable */
     public static final int  ENOTEMPTY = -39;  /* Directory not empty */
-
 }
