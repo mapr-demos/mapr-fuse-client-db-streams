@@ -526,8 +526,6 @@ public class StreamFuse extends FuseStubFS {
             return EACCES;
         } catch (IOException e) {
             log.info("I/O error {}", fullPath);
-            // TODO deferred clean up. Shouldn't be in real code
-            e.printStackTrace();
             return EIO;
         }
 
