@@ -8,19 +8,19 @@ import java.nio.file.Path;
 public class ConvertUtils {
     private final static String TOPIC_NAME_PATTERN = "%s:%s";
 
-    public String getStreamName(Path root, Path path) {
+    public static String getStreamName(Path root, Path path) {
         return path.toString().replace(root.toString(), "");
     }
 
-    public String getTopicName(Path path) {
+    public static String getTopicName(Path path) {
         return path.getFileName().toString();
     }
 
-    public String transformToTopicName(String stream, String topic) {
+    public static String transformToTopicName(String stream, String topic) {
         return String.format(TOPIC_NAME_PATTERN, stream, topic);
     }
 
-    public int getPartitionId(Path path) {
+    public static int getPartitionId(Path path) {
         return Integer.parseInt(path.getFileName().toString());
     }
 

@@ -8,7 +8,9 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class TopicWriter {
 
@@ -34,8 +36,8 @@ public class TopicWriter {
      * @param message         message to send
      * @param timeout         timeout for operation
      */
-    @SneakyThrows
-    public void writeToTopic(final String streamTopicName, final byte[] message, final Long timeout) {
+    @SuppressWarnings("SameParameterValue")
+    public void writeToTopic(final String streamTopicName, final byte[] message, final Long timeout) throws InterruptedException, ExecutionException, TimeoutException {
         ProducerRecord<byte[], byte[]> rec = new ProducerRecord<>(streamTopicName, message);
         kafkaProducer.send(rec).get(timeout, TimeUnit.MILLISECONDS);
     }

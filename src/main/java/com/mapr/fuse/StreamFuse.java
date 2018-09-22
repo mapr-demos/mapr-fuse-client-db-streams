@@ -7,9 +7,9 @@ import com.mapr.fuse.utils.AttrsUtils;
 import com.mapr.fuse.utils.ConvertUtils;
 import jnr.ffi.Pointer;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.TopicPartition;
+import org.slf4j.Logger;
 import ru.serce.jnrfuse.FuseFillDir;
 import ru.serce.jnrfuse.FuseStubFS;
 import ru.serce.jnrfuse.struct.FileStat;
@@ -20,17 +20,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.*;
-import java.nio.file.attribute.*;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 import static com.mapr.fuse.ErrNo.*;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 
-@Slf4j
 public class StreamFuse extends FuseStubFS {
 
     private static final Pattern TABLE_LINK_PATTERN = Pattern.compile("mapr::table::[0-9.]+");
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(StreamFuse.class);
 
     private final Path root;
     private ReadDataService tdService;
@@ -45,7 +47,7 @@ public class StreamFuse extends FuseStubFS {
         this.adminService = adminService;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         if (args.length == 2) {
             String root = args[0];
             String mountPoint = args[1];
@@ -65,20 +67,20 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    private int getPartitionSize(String stream, String topic, int partitionId) {
+    private int getPartitionSize(String stream, String topic, int partitionId) throws IOException {
         return tdService.requestTopicSizeData(stream, ConvertUtils.transformToTopicName(stream, topic),
                 partitionId);
     }
 
-    private boolean isPartitionExists(String stream, String topic, Integer partitionId) {
+    private boolean isPartitionExists(String stream, String topic, Integer partitionId) throws IOException {
         return adminService.getTopicPartitions(stream, topic) > partitionId;
     }
 
-    private boolean isStreamExists(Path path) {
+    private boolean isStreamExists(Path path) throws IOException {
         return adminService.streamExists(ConvertUtils.getStreamName(root, path));
     }
 
-    private boolean isTopicExists(Path path) {
+    private boolean isTopicExists(Path path) throws IOException {
         return adminService.getTopicNames(ConvertUtils.getStreamName(root, path.getParent()))
                 .contains(ConvertUtils.getTopicName(path));
     }
@@ -103,8 +105,7 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    @SneakyThrows
-    private boolean isTableLink(Path file) {
+    private boolean isTableLink(Path file) throws IOException {
         return Files.isSymbolicLink(file) &&
                 (TABLE_LINK_PATTERN.matcher(Files.readSymbolicLink(file).toString()).matches());
     }
@@ -153,6 +154,7 @@ public class StreamFuse extends FuseStubFS {
                         log.info("   topic attributes: {}", fullPath, AttrsUtils.attributeToString(stat));
                         return 0;
                     } else
+                        log.info("    {} topic not found", fullPath);
                         return ErrNo.ENOENT;
                 case PARTITION:
                     log.info("   {} is a partition", fullPath);
@@ -176,6 +178,7 @@ public class StreamFuse extends FuseStubFS {
                     if (Files.exists(fullPath)) {
                         AttrsUtils.setupAttrs(fullPath, stat);
                     } else {
+                        log.info("    {} not found", fullPath);
                         return ENOENT;
                     }
             }
@@ -194,89 +197,103 @@ public class StreamFuse extends FuseStubFS {
     }
 
     @Override
-    @SneakyThrows
     public int mkdir(final String path, final long mode) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
         log.info("mkdir for -> {}", fullPath);
 
-        switch (getObjectType(fullPath.getParent())) {
-            case DIRECTORY:
-                try {
-                    Files.createDirectory(fullPath, PosixFilePermissions.asFileAttribute(AttrsUtils.decodeMode(mode)));
-                    return 0;
-                } catch (NoSuchFileException e) {
-                    return ENOENT;
-                } catch (DirectoryNotEmptyException e) {
-                    return ENOTEMPTY;
-                } catch (SecurityException e) {
+        try {
+            switch (getObjectType(fullPath.getParent())) {
+                case DIRECTORY:
+                    try {
+                        Files.createDirectory(fullPath, PosixFilePermissions.asFileAttribute(AttrsUtils.decodeMode(mode)));
+                        return 0;
+                    } catch (NoSuchFileException e) {
+                        return ENOENT;
+                    } catch (DirectoryNotEmptyException e) {
+                        return ENOTEMPTY;
+                    } catch (SecurityException e) {
+                        return EPERM;
+                    } catch (IOException e) {
+                        return EIO;
+                    }
+                case STREAM:
+                    try {
+                        adminService.createTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
+                                ConvertUtils.getTopicName(fullPath));
+                        return 0;
+                    } catch (NoSuchFileException e) {
+                        log.info("Create topic failed {}", e.getMessage());
+                        return ENOENT;
+                    } catch (SecurityException e) {
+                        log.info("Create topic failed {}", e.getMessage());
+                        return EPERM;
+                    } catch (IOException e) {
+                        log.info("Create topic failed {}", e.getMessage());
+                        return EIO;
+                    }
+                case TOPIC:
+                case PARTITION:
                     return EPERM;
-                } catch (IOException e) {
-                    return EIO;
-                }
-            case STREAM:
-                try {
-                    adminService.createTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
-                            ConvertUtils.getTopicName(fullPath));
-                    return 0;
-                } catch (NoSuchFileException e) {
-                    log.info("Create topic failed {}", e.getMessage());
-                    return ENOENT;
-                } catch (SecurityException e) {
-                    log.info("Create topic failed {}", e.getMessage());
-                    return EPERM;
-                } catch (IOException e) {
-                    log.info("Create topic failed {}", e.getMessage());
-                    return EIO;
-                }
-            case TOPIC:
-            case PARTITION:
-                return EPERM;
-            default:
-                return EINVAL;
+                default:
+                    return EINVAL;
+            }
+        } catch (IOException e) {
+            StringBuilder trace = new StringBuilder();
+            StackTraceElement[] stack = e.getStackTrace();
+            for (int i = 0; i < 3; i++) {
+                trace.append(stack[i]).append(" // ");
+            }
+            log.info("I/O exception trying to get object type for {} {}", fullPath, trace);
+            return EIO;
         }
     }
 
     @Override
-    @SneakyThrows
     public int rmdir(final String path) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
         log.info("rmdir for -> {}", fullPath);
 
-        switch (getObjectType(fullPath)) {
-            case DIRECTORY:
-                try {
-                    Files.delete(fullPath);
+        try {
+            switch (getObjectType(fullPath)) {
+                case DIRECTORY:
+                    try {
+                        Files.delete(fullPath);
+                        return 0;
+                    } catch (NoSuchFileException e) {
+                        return ENOENT;
+                    } catch (DirectoryNotEmptyException e) {
+                        return ENOTEMPTY;
+                    } catch (SecurityException e) {
+                        return EPERM;
+                    } catch (IOException e) {
+                        return EIO;
+                    }
+                case STREAM:
+                    try {
+                        adminService.removeStream(ConvertUtils.getStreamName(root, fullPath));
+                    } catch (IOException e) {
+                        log.info("Remove stream failed {}", e.getMessage());
+                        return EIO;
+                    }
                     return 0;
-                } catch (NoSuchFileException e) {
-                    return ENOENT;
-                } catch (DirectoryNotEmptyException e) {
-                    return ENOTEMPTY;
-                } catch (SecurityException e) {
+                case TOPIC:
+                    try {
+                        adminService.removeTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
+                                ConvertUtils.getTopicName(fullPath));
+                    } catch (IOException e) {
+                        log.info("Remove topic failed {}", e.getMessage());
+                        return EIO;
+                    }
+                    return 0;
+                case PARTITION:
                     return EPERM;
-                } catch (IOException e) {
-                    return EIO;
-                }
-            case STREAM:
-                try {
-                    adminService.removeStream(ConvertUtils.getStreamName(root, fullPath));
-                } catch (IOException e) {
-                    log.info("Remove stream failed {}", e.getMessage());
-                    return EIO;
-                }
-                return 0;
-            case TOPIC:
-                try {
-                    adminService.removeTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
-                            ConvertUtils.getTopicName(fullPath));
-                } catch (IOException e) {
-                    log.info("Remove topic failed {}", e.getMessage());
-                    return EIO;
-                }
-                return 0;
-            case PARTITION:
-                return EPERM;
-            default:
-                return ENOTDIR;
+                default:
+                    return ENOTDIR;
+            }
+        } catch (IOException e) {
+            // TODO put proper trace here
+            e.printStackTrace();
+            return EIO;
         }
     }
 
@@ -443,12 +460,18 @@ public class StreamFuse extends FuseStubFS {
                 default:
                     return EINVAL;
             }
+        } catch (ExecutionException | TimeoutException e) {
+            e.printStackTrace();
+            return EIO;
         } catch (NoSuchFileException e) {
             return ENOENT;
         } catch (SecurityException e) {
             return EPERM;
         } catch (IOException e) {
             return EIO;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return EINTR;
         }
     }
 

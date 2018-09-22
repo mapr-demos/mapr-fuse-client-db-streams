@@ -16,28 +16,23 @@ public class AdminTopicService {
 
     private final Admin admin;
 
-    @SneakyThrows
-    public AdminTopicService(Configuration configuration) {
+    public AdminTopicService(Configuration configuration) throws IOException {
         admin = Streams.newAdmin(configuration);
     }
 
-    @SneakyThrows
-    public boolean streamExists(final String stream) {
+    public boolean streamExists(final String stream) throws IOException {
         return admin.streamExists(stream);
     }
 
-    @SneakyThrows
-    public Set<String> getTopicNames(final String streamPath) {
+    public Set<String> getTopicNames(final String streamPath) throws IOException {
         return new HashSet<>(admin.listTopics(streamPath));
     }
 
-    @SneakyThrows
-    public int countTopics(final String streamPath) {
+    public int countTopics(final String streamPath) throws IOException {
         return admin.countTopics(streamPath);
     }
 
-    @SneakyThrows
-    public int getTopicPartitions(final String stream, final String topic) {
+    public int getTopicPartitions(final String stream, final String topic) throws IOException {
         return admin.getTopicDescriptor(stream, topic).getPartitions();
     }
 
@@ -57,8 +52,7 @@ public class AdminTopicService {
         admin.deleteTopic(stream, topic);
     }
 
-    @SneakyThrows
-    public StreamDescriptor getStreamDescriptor(String stream) {
+    public StreamDescriptor getStreamDescriptor(String stream) throws IOException {
         return admin.getStreamDescriptor(stream);
     }
 

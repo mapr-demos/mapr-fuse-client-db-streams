@@ -1,7 +1,6 @@
 package com.mapr.fuse.client;
 
 import com.google.common.base.Stopwatch;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -10,15 +9,16 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.serialization.BytesDeserializer;
 import org.apache.kafka.common.utils.Bytes;
+import org.slf4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
-@Slf4j
 public class TopicReader {
 
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(TopicReader.class);
     private final KafkaConsumer<Bytes, Bytes> kafkaConsumer;
     private final static String KAFKA_HOST = "kafkaHost";
 

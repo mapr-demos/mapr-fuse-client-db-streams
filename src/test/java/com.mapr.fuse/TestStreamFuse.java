@@ -26,6 +26,7 @@ import java.util.Set;
 import static com.mapr.fuse.ErrNo.*;
 import static org.mockito.Mockito.*;
 
+@SuppressWarnings("WeakerAccess")
 public class TestStreamFuse {
 
   public final static int TOPIC_SIZE_DATA = 100;
@@ -280,7 +281,7 @@ public class TestStreamFuse {
       Assert.assertEquals(expectedPermissions, permissions);
   }
 
-  public ReadDataService getReadDataServiceMock() {
+  public ReadDataService getReadDataServiceMock() throws IOException {
       ReadDataService tdService = Mockito.mock(ReadDataService.class);
 
       when(tdService.requestTopicSizeData(ArgumentMatchers.matches(STREAM_NAME),
@@ -290,7 +291,7 @@ public class TestStreamFuse {
       return tdService;
   }
 
-  public AdminTopicService getAdminTopicServiceMock() {
+  public AdminTopicService getAdminTopicServiceMock() throws IOException {
       AdminTopicService admin = Mockito.mock(AdminTopicService.class);
 
       when(admin.getTopicPartitions(ArgumentMatchers.matches(STREAM_NAME), ArgumentMatchers.matches(TOPIC_NAME)))
@@ -305,8 +306,7 @@ public class TestStreamFuse {
   }
 
   public TopicWriter getTopicWriterMock() {
-      TopicWriter writer = Mockito.mock(TopicWriter.class);
-      return writer;
+      return Mockito.mock(TopicWriter.class);
   }
 
 }

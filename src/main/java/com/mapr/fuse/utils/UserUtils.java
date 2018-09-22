@@ -4,10 +4,9 @@ import lombok.experimental.UtilityClass;
 import java.io.InputStream;
 import java.nio.file.attribute.UserPrincipalNotFoundException;
 
-@UtilityClass
 public class UserUtils {
 
-    public long getUid(String userName) throws UserPrincipalNotFoundException {
+    public static long getUid(String userName) throws UserPrincipalNotFoundException {
         return getIdInfo("-u", userName);
     }
     public static long getGid(String userName) throws UserPrincipalNotFoundException {

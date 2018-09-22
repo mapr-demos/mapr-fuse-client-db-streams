@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("WeakerAccess")
 @RunWith(value = PowerMockRunner.class)
 @PrepareForTest(ReadDataService.class)
 public class TestReadDataService {
@@ -68,7 +70,7 @@ public class TestReadDataService {
     }
 
     @Test
-    public void testGetLatestConfig() {
+    public void testGetLatestConfig() throws IOException {
         MessageConfig messageConfigFromService = readDataService.getLatestConfig("/fuse_config");
 
         Assert.assertEquals(messageConfig, messageConfigFromService);
@@ -78,7 +80,7 @@ public class TestReadDataService {
     }
 
     @Test
-    public void testRequestTopicSizeData() {
+    public void testRequestTopicSizeData() throws IOException {
         String resultMessage = messageList.stream().map(msg ->
                 MessageUtils.formatMessage(messageConfig, msg, false))
                 .collect(Collectors.joining());
@@ -88,7 +90,7 @@ public class TestReadDataService {
     }
 
     @Test
-    public void testReadRequiredBytesFromTopicPartition() {
+    public void testReadRequiredBytesFromTopicPartition() throws IOException {
         readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         String resultMessage = messageList.stream().map(msg ->
@@ -102,7 +104,7 @@ public class TestReadDataService {
     }
 
     @Test
-    public void testReadRequiredBytesFromTopicPartitionWithStartCutoff() {
+    public void testReadRequiredBytesFromTopicPartitionWithStartCutoff() throws IOException {
         readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         AtomicInteger index = new AtomicInteger();
@@ -120,7 +122,7 @@ public class TestReadDataService {
     }
 
     @Test
-    public void testReadRequiredBytesFromTopicPartitionWithEndCutoff() {
+    public void testReadRequiredBytesFromTopicPartitionWithEndCutoff() throws IOException {
         readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         String resultMessage = messageList.stream().map(msg ->
@@ -134,7 +136,7 @@ public class TestReadDataService {
     }
 
     @Test
-    public void testReadRequiredBytesFromTopicPartitionWithStartAndEndCutoff() {
+    public void testReadRequiredBytesFromTopicPartitionWithStartAndEndCutoff() throws IOException {
         readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION);
 
         AtomicInteger index = new AtomicInteger();

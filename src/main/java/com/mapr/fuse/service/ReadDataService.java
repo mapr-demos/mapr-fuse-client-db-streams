@@ -6,19 +6,18 @@ import com.mapr.fuse.dto.MessageConfig;
 import com.mapr.fuse.entity.MessageRange;
 import com.mapr.fuse.entity.TopicRange;
 import com.mapr.fuse.utils.MessageUtils;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Bytes;
+import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Slf4j
 public class ReadDataService {
-
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(ReadDataService.class);
     private TopicReader topicReader;
     private ConcurrentHashMap<TopicPartition, LinkedList<Integer>> topicSizeData;
     private MessageConfig messageConfig;
@@ -31,7 +30,7 @@ public class ReadDataService {
         topicSizeData = new ConcurrentHashMap<>();
     }
 
-    public Integer requestTopicSizeData(final String stream, final String topicName, final Integer partitionId) {
+    public Integer requestTopicSizeData(final String stream, final String topicName, final Integer partitionId) throws IOException {
         TopicPartition partition = new TopicPartition(topicName, partitionId);
         updateMessageConfig(stream);
         updatePartitionSize(partition);
@@ -44,7 +43,7 @@ public class ReadDataService {
     }
 
     public byte[] readRequiredBytesFromTopicPartition(final TopicPartition partition, final Long startOffset,
-            final Long numberOfBytes, final Long timeout) {
+                                                      final Long numberOfBytes, final Long timeout) {
         TopicRange topicReadRange =
                 calculateReadRange(partition, startOffset, numberOfBytes);
 
@@ -54,10 +53,9 @@ public class ReadDataService {
                 numberOfBytes.intValue())).orElseGet(() -> new byte[0]);
     }
 
-    @SneakyThrows
-    public MessageConfig getLatestConfig(String stream) {
+    public MessageConfig getLatestConfig(String stream) throws IOException {
         Bytes record = topicReader.readPartition(new TopicPartition(String.format("%s:%s", stream, MESSAGE_CONFIG_TOPIC),
-                        0), 0, 200L).reduce((first, second) -> second).orElse(null);
+                0), 0, 200L).reduce((first, second) -> second).orElse(null);
         ObjectMapper mapper = new ObjectMapper();
         if (Objects.isNull(record)) {
             return new MessageConfig();
@@ -75,7 +73,7 @@ public class ReadDataService {
                         .addLast(record.get().length));
     }
 
-    private void updateMessageConfig(String stream) {
+    private void updateMessageConfig(String stream) throws IOException {
         messageConfig = getLatestConfig(stream);
     }
 
@@ -85,10 +83,10 @@ public class ReadDataService {
         return topicReader.readPartition(partition, topicRange.getStartOffset().getTopicOffset(),
                 topicRange.getNumberOfMessages(), timeout).limit(topicRange.getNumberOfMessages())
                 .map(record -> index.getAndIncrement() == 0 ?
-                     MessageUtils.formatMessage(messageConfig,
-                        new String(record.get()).substring(topicRange.getStartOffset().getOffsetFromStartMessage()),
-                        topicRange.getStartOffset().getOffsetFromStartMessage() != 0).getBytes():
-                     MessageUtils.formatMessage(messageConfig, new String(record.get()), false).getBytes())
+                        MessageUtils.formatMessage(messageConfig,
+                                new String(record.get()).substring(topicRange.getStartOffset().getOffsetFromStartMessage()),
+                                topicRange.getStartOffset().getOffsetFromStartMessage() != 0).getBytes() :
+                        MessageUtils.formatMessage(messageConfig, new String(record.get()), false).getBytes())
                 .reduce(ArrayUtils::addAll);
     }
 
