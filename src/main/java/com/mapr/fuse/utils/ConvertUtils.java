@@ -8,15 +8,11 @@ import java.nio.file.Path;
 public class ConvertUtils {
     private final static String TOPIC_NAME_PATTERN = "%s:%s";
 
-    public static String getStreamName(Path root, Path path) {
-        return path.toString().replace(root.toString(), "");
-    }
-
     public static String getTopicName(Path path) {
         return path.getFileName().toString();
     }
 
-    public static String transformToTopicName(String stream, String topic) {
+    public static String transformToTopicName(Path stream, String topic) {
         return String.format(TOPIC_NAME_PATTERN, stream, topic);
     }
 
@@ -30,4 +26,5 @@ public class ConvertUtils {
         }
         return root.resolve(partial);
     }
+
 }

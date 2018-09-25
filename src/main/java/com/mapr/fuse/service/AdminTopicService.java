@@ -3,11 +3,11 @@ package com.mapr.fuse.service;
 import com.mapr.streams.Admin;
 import com.mapr.streams.StreamDescriptor;
 import com.mapr.streams.Streams;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -20,40 +20,40 @@ public class AdminTopicService {
         admin = Streams.newAdmin(configuration);
     }
 
-    public boolean streamExists(final String stream) throws IOException {
-        return admin.streamExists(stream);
+    public boolean streamExists(final Path stream) throws IOException {
+        return admin.streamExists(stream.toString());
     }
 
-    public Set<String> getTopicNames(final String streamPath) throws IOException {
-        return new HashSet<>(admin.listTopics(streamPath));
+    public Set<String> getTopicNames(final Path streamPath) throws IOException {
+        return new HashSet<>(admin.listTopics(streamPath.toString()));
     }
 
-    public int countTopics(final String streamPath) throws IOException {
-        return admin.countTopics(streamPath);
+    public int countTopics(final Path streamPath) throws IOException {
+        return admin.countTopics(streamPath.toString());
     }
 
-    public int getTopicPartitions(final String stream, final String topic) throws IOException {
-        return admin.getTopicDescriptor(stream, topic).getPartitions();
+    public int getTopicPartitions(final Path stream, final String topic) throws IOException {
+        return admin.getTopicDescriptor(stream.toString(), topic).getPartitions();
     }
 
-    public void createStream(final String stream) throws IOException {
-        admin.createStream(stream, Streams.newStreamDescriptor());
+    public void createStream(final Path stream) throws IOException {
+        admin.createStream(stream.toString(), Streams.newStreamDescriptor());
     }
 
-    public void createTopic(final String stream, final String topic) throws IOException {
-        admin.createTopic(stream, topic);
+    public void createTopic(final Path stream, final String topic) throws IOException {
+        admin.createTopic(stream.toString(), topic);
     }
 
-    public void removeStream(final String stream) throws IOException {
-        admin.deleteStream(stream);
+    public void removeStream(final Path stream) throws IOException {
+        admin.deleteStream(stream.toString());
     }
 
-    public void removeTopic(final String stream, final String topic) throws IOException {
-        admin.deleteTopic(stream, topic);
+    public void removeTopic(final Path stream, final String topic) throws IOException {
+        admin.deleteTopic(stream.toString(), topic);
     }
 
-    public StreamDescriptor getStreamDescriptor(String stream) throws IOException {
-        return admin.getStreamDescriptor(stream);
+    public StreamDescriptor getStreamDescriptor(Path stream) throws IOException {
+        return admin.getStreamDescriptor(stream.toString());
     }
 
 }

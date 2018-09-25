@@ -6,7 +6,6 @@ import com.mapr.fuse.service.ReadDataService;
 import com.mapr.fuse.utils.AttrsUtils;
 import com.mapr.fuse.utils.ConvertUtils;
 import jnr.ffi.Pointer;
-import lombok.SneakyThrows;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -67,66 +66,77 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    private int getPartitionSize(String stream, String topic, int partitionId) throws IOException {
-        return tdService.requestTopicSizeData(stream, ConvertUtils.transformToTopicName(stream, topic),
+    private int getPartitionSize(Path stream, String topic, int partitionId) throws IOException {
+        return tdService.requestTopicSizeData(stream.toString(),
+                ConvertUtils.transformToTopicName(stream, topic),
                 partitionId);
     }
 
-    private boolean isPartitionExists(String stream, String topic, Integer partitionId) throws IOException {
+    private boolean isPartitionExists(Path stream, String topic, Integer partitionId) throws IOException {
         return adminService.getTopicPartitions(stream, topic) > partitionId;
     }
 
     private boolean isStreamExists(Path path) throws IOException {
-        return adminService.streamExists(ConvertUtils.getStreamName(root, path));
+        log.info("  does stream {} exist?", path);
+        return path != null && adminService.streamExists(path);
     }
 
     private boolean isTopicExists(Path path) throws IOException {
-        return adminService.getTopicNames(ConvertUtils.getStreamName(root, path.getParent()))
+        return adminService.getTopicNames(path.getParent())
                 .contains(ConvertUtils.getTopicName(path));
     }
 
-    private ObjectType getObjectType(Path file) throws IOException {
-        if (isPartition(file)) {
+    private ObjectType getObjectType(Path path) throws IOException {
+        if (path == null) {
+            return ObjectType.WHATEVER;
+        } else if (isPartition(path)) {
             return ObjectType.PARTITION;
-        } else if (isTopic(file)) {
+        } else if (isTopic(path)) {
             return ObjectType.TOPIC;
-        } else if (isTableLink(file)) {
-            if (isStream(file)) {
+        } else if (isTableLink(path)) {
+            if (isStream(path)) {
                 return ObjectType.STREAM;
             } else {
                 return ObjectType.TABLE;
             }
-        } else if (Files.isDirectory(file, NOFOLLOW_LINKS)) {
+        } else if (Files.isDirectory(path, NOFOLLOW_LINKS)) {
             return ObjectType.DIRECTORY;
-        } else if (Files.isSymbolicLink(file)) {
+        } else if (Files.isSymbolicLink(path)) {
             return ObjectType.LINK;
         } else {
             return ObjectType.FILE;
         }
     }
 
-    private boolean isTableLink(Path file) throws IOException {
-        return Files.isSymbolicLink(file) &&
-                (TABLE_LINK_PATTERN.matcher(Files.readSymbolicLink(file).toString()).matches());
+    private boolean isTableLink(Path path) throws IOException {
+        log.info("  is {} a table?", path);
+        return path != null && Files.isSymbolicLink(path) &&
+                (TABLE_LINK_PATTERN.matcher(Files.readSymbolicLink(path).toString()).matches());
     }
 
-    private boolean isStream(Path file) throws IOException {
+    private boolean isStream(Path path) throws IOException {
+        log.info("  is {} a stream?", path);
         try {
-            return isTableLink(file) && isStreamExists(file);
+            return path != null && isTableLink(path) && isStreamExists(path);
         } catch (UnsupportedOperationException e) {
+            log.error("   illegal state exception {}", e.getMessage());
+            // TODO get rid of this
+            e.printStackTrace();
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
-            log.info("Can't access {}", file);
-            throw new AccessDeniedException(file.toString());
+            log.info("Can't access {}", path);
+            throw new AccessDeniedException(path.toString());
         }
     }
 
-    private boolean isTopic(Path file) throws IOException {
-        return isStream(file.getParent());
+    private boolean isTopic(Path path) throws IOException {
+        log.info("  is {} a topic?", path);
+        return path != null && isStream(path.getParent());
     }
 
-    private boolean isPartition(Path file) throws IOException {
-        return isTopic(file.getParent());
+    private boolean isPartition(Path path) throws IOException {
+        log.info("  is {} a partition?", path);
+        return path != null && isTopic(path.getParent());
     }
 
     @Override
@@ -134,42 +144,48 @@ public class StreamFuse extends FuseStubFS {
         Path fullPath = ConvertUtils.getFullPath(root, path);
         log.info("Get attr for -> {}", fullPath);
 
-        String streamName;
-
         try {
-            switch (getObjectType(fullPath)) {
+            ObjectType t = getObjectType(fullPath);
+            log.info(" found object of type {}", t);
+            switch (t) {
                 case STREAM:
                     log.info("   {} is a stream", fullPath);
-                    streamName = ConvertUtils.getStreamName(root, fullPath);
-                    AttrsUtils.setupAttrsStream(adminService.getStreamDescriptor(streamName),
-                            adminService.countTopics(streamName), fullPath, stat);
+                    AttrsUtils.setupAttrsStream(
+                            adminService.getStreamDescriptor(fullPath),
+                            adminService.countTopics(fullPath),
+                            fullPath, stat);
                     return 0;
+
                 case TOPIC:
-                    if(isTopicExists(fullPath)) {
+                    if (isTopicExists(fullPath)) {
                         log.info("   {} is a topic", fullPath);
-                        streamName = ConvertUtils.getStreamName(root, fullPath.getParent());
-                        AttrsUtils.setupAttrsTopic(adminService.getStreamDescriptor(streamName),
-                                adminService.getTopicPartitions(streamName, ConvertUtils.getTopicName(fullPath)),
+                        AttrsUtils.setupAttrsTopic(
+                                adminService.getStreamDescriptor(fullPath.getParent()),
+                                adminService.getTopicPartitions(fullPath.getParent(), ConvertUtils.getTopicName(fullPath)),
                                 fullPath, stat);
                         log.info("   topic attributes: {}", fullPath, AttrsUtils.attributeToString(stat));
                         return 0;
                     } else
                         log.info("    {} topic not found", fullPath);
-                        return ErrNo.ENOENT;
+                    return ErrNo.ENOENT;
+
                 case PARTITION:
                     log.info("   {} is a partition", fullPath);
                     int partitionId = ConvertUtils.getPartitionId(fullPath);
                     String topic = ConvertUtils.getTopicName(fullPath.getParent());
-                    streamName = ConvertUtils.getStreamName(root, fullPath.getParent().getParent());
-                    if (!isPartitionExists(streamName, topic, partitionId)) {
-                        log.info("    Partition does not exist {} / {} / {}", streamName, topic, partitionId);
+                    if (!isPartitionExists(fullPath.getParent().getParent(), topic, partitionId)) {
+                        log.info("    Partition does not exist {} / {} / {}",
+                                fullPath.getParent().getParent(), topic, partitionId);
                         return ENOENT;
                     }
-                    log.info("  Attributes from {} / {} / {}", streamName, topic, partitionId);
-                    int size = getPartitionSize(streamName, topic, partitionId);
-                    AttrsUtils.setupAttrsPartition(adminService.getStreamDescriptor(streamName), size, fullPath, stat);
+                    log.info("  Attributes from {} / {} / {}",
+                            fullPath.getParent().getParent(), topic, partitionId);
+                    int size = getPartitionSize(fullPath.getParent().getParent(), topic, partitionId);
+                    AttrsUtils.setupAttrsPartition(adminService.getStreamDescriptor(
+                            fullPath.getParent().getParent()), size, fullPath, stat);
                     log.info("  partition attributes: {}", AttrsUtils.attributeToString(stat));
                     return 0;
+
                 case DIRECTORY:
                 case FILE:
                 case LINK:
@@ -177,10 +193,14 @@ public class StreamFuse extends FuseStubFS {
                     log.info("   {} is something ordinary", fullPath);
                     if (Files.exists(fullPath)) {
                         AttrsUtils.setupAttrs(fullPath, stat);
+                        return 0;
                     } else {
                         log.info("    {} not found", fullPath);
                         return ENOENT;
                     }
+                default:
+                    log.info("    {} is something ({}) that we don't understand", fullPath, t);
+                    return EINVAL;
             }
         } catch (AccessDeniedException e) {
             log.info("Access denied to {}", fullPath);
@@ -192,8 +212,6 @@ public class StreamFuse extends FuseStubFS {
             log.info("I/O exception accessing {}", fullPath);
             return EIO;
         }
-
-        return 0;
     }
 
     @Override
@@ -218,7 +236,7 @@ public class StreamFuse extends FuseStubFS {
                     }
                 case STREAM:
                     try {
-                        adminService.createTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
+                        adminService.createTopic(fullPath.getParent(),
                                 ConvertUtils.getTopicName(fullPath));
                         return 0;
                     } catch (NoSuchFileException e) {
@@ -270,7 +288,7 @@ public class StreamFuse extends FuseStubFS {
                     }
                 case STREAM:
                     try {
-                        adminService.removeStream(ConvertUtils.getStreamName(root, fullPath));
+                        adminService.removeStream(fullPath);
                     } catch (IOException e) {
                         log.info("Remove stream failed {}", e.getMessage());
                         return EIO;
@@ -278,7 +296,7 @@ public class StreamFuse extends FuseStubFS {
                     return 0;
                 case TOPIC:
                     try {
-                        adminService.removeTopic(ConvertUtils.getStreamName(root, fullPath.getParent()),
+                        adminService.removeTopic(fullPath.getParent(),
                                 ConvertUtils.getTopicName(fullPath));
                     } catch (IOException e) {
                         log.info("Remove topic failed {}", e.getMessage());
@@ -300,7 +318,7 @@ public class StreamFuse extends FuseStubFS {
     @Override
     public int chmod(final String path, final long mode) {
         Path fullPath = ConvertUtils.getFullPath(root, path);
-        log.info("chown for -> {}", fullPath);
+        log.info("chmod for -> {}", fullPath);
 
         try {
             switch (getObjectType(fullPath)) {
@@ -386,8 +404,7 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int open(final String path, final FuseFileInfo fi) {
-        String fullPath = ConvertUtils.getFullPath(root, path).toString();
-        log.info("open for -> {}", fullPath);
+        log.info("open for -> {}", ConvertUtils.getFullPath(root, path));
         return 0;
     }
 
@@ -406,11 +423,11 @@ public class StreamFuse extends FuseStubFS {
         if (isPartition) {
             log.info("read partition {}", fullPath);
             long amountOfBytes = offset + size;
-            String stream = ConvertUtils.getStreamName(root, fullPath.getParent().getParent());
             String topic = ConvertUtils.getTopicName(fullPath.getParent());
 
             TopicPartition partition =
-                    new TopicPartition(ConvertUtils.transformToTopicName(stream, topic),
+                    new TopicPartition(
+                            ConvertUtils.transformToTopicName(fullPath.getParent().getParent(), topic),
                             ConvertUtils.getPartitionId(fullPath));
 
             byte[] vr = tdService.readRequiredBytesFromTopicPartition(partition, offset, amountOfBytes, 2000L);
@@ -449,8 +466,8 @@ public class StreamFuse extends FuseStubFS {
                     Path stream = fullPath.getParent().getParent();
                     Path topic = fullPath.getParent();
                     topicWriter.writeToTopic(
-                            ConvertUtils.transformToTopicName(ConvertUtils.getStreamName(root, stream),
-                            ConvertUtils.getTopicName(topic)), validateBytes(bytesToWrite), 5000L);
+                            ConvertUtils.transformToTopicName(stream, ConvertUtils.getTopicName(topic)),
+                            validateBytes(bytesToWrite), 5000L);
                     return (int) size;
                 case TABLE:
                 case DIRECTORY:
@@ -501,9 +518,9 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int opendir(final String path, final FuseFileInfo fi) {
-        String fullPath = ConvertUtils.getFullPath(root, path).toString();
+        Path fullPath = ConvertUtils.getFullPath(root, path);
         log.info("opendir for -> {}", fullPath);
-        return super.opendir(fullPath, fi);
+        return super.opendir(fullPath.toString(), fi);
     }
 
     @Override
@@ -516,14 +533,14 @@ public class StreamFuse extends FuseStubFS {
             switch (getObjectType(fullPath)) {
                 case STREAM:
                     log.info("  found stream at {}", fullPath);
-                    Set<String> topicNames = adminService.getTopicNames(ConvertUtils.getStreamName(root, fullPath));
+                    Set<String> topicNames = adminService.getTopicNames(fullPath);
                     topicNames.forEach(x -> log.info("  {}", x));
                     topicNames.forEach(x -> filter.apply(buf, x, null, 0));
                     return 0;
                 case TOPIC:
                     log.info("  found topic at {}", fullPath);
-                    int numberOfPartitions = adminService.getTopicPartitions(ConvertUtils.getStreamName(root,
-                            fullPath.getParent()),
+                    int numberOfPartitions = adminService.getTopicPartitions(
+                            fullPath.getParent(),
                             ConvertUtils.getTopicName(fullPath));
                     for (int i = 0; i < numberOfPartitions; i++) {
                         filter.apply(buf, Integer.toString(i), null, 0);
@@ -551,7 +568,7 @@ public class StreamFuse extends FuseStubFS {
             StringBuilder trace = new StringBuilder();
             StackTraceElement[] stack = e.getStackTrace();
             for (int i = 0; i < 3 && i < stack.length; i++) {
-                trace.append(stack[i].toString()).append(" // ");
+                trace.append(stack[i]).append(" // ");
             }
             log.info("I/O error {} {}", fullPath, trace);
             return EIO;
@@ -563,7 +580,6 @@ public class StreamFuse extends FuseStubFS {
 
     @Override
     public int access(final String path, final int mask) {
-        String fullPath = ConvertUtils.getFullPath(root, path).toString();
-        return super.access(fullPath, mask);
+        return super.access(ConvertUtils.getFullPath(root, path).toString(), mask);
     }
 }

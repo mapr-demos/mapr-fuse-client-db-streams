@@ -6,5 +6,7 @@ public enum ObjectType {
     // a MapR table (not supported yet, but should be detected)
     TABLE,
     // conventional file system objects
-    DIRECTORY, FILE, LINK
+    DIRECTORY, FILE, LINK,
+    // catch all for stuff we don't understand
+    WHATEVER
 }
