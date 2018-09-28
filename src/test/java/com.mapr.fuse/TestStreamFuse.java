@@ -8,6 +8,7 @@ import com.mapr.fuse.utils.ConvertUtils;
 import org.junit.*;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import java.io.File;
 import java.io.IOException;
@@ -74,24 +75,24 @@ public class TestStreamFuse {
 
   @Test
   public void getPartitionSizeTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-      Method method = StreamFuse.class.getDeclaredMethod("getPartitionSize", String.class, String.class, int.class);
+      Method method = StreamFuse.class.getDeclaredMethod("getPartitionSize", Path.class, String.class, int.class);
       method.setAccessible(true);
-      int partitionId = Integer.parseInt(method.invoke(fuse, STREAM_NAME, TOPIC_NAME, PARTITION_ID).toString());
 
+      int partitionId = (int)(method.invoke(fuse, Paths.get(STREAM_NAME), TOPIC_NAME, PARTITION_ID));
       Assert.assertEquals(TOPIC_SIZE_DATA, partitionId);
   }
 
   @Test
   public void isPartitionExistsTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-      Method method = StreamFuse.class.getDeclaredMethod("isPartitionExists", String.class, String.class, Integer.class);
+      Method method = StreamFuse
+              .class.getDeclaredMethod("isPartitionExists", Path.class, String.class, Integer.class);
       method.setAccessible(true);
-      boolean existsPartition = Boolean.valueOf(method.invoke(fuse, STREAM_NAME, TOPIC_NAME, PARTITION_ID).toString());
 
+      boolean existsPartition = (boolean)(method.invoke(fuse, Paths.get(STREAM_NAME), TOPIC_NAME, PARTITION_ID));
       Assert.assertTrue(existsPartition);
 
-      boolean notExistsPartition = Boolean.valueOf(method.invoke(fuse, STREAM_NAME, TOPIC_NAME, PARTITION_ID + 1)
-              .toString());
-
+      boolean notExistsPartition = (boolean)(method
+              .invoke(fuse, Paths.get(STREAM_NAME), TOPIC_NAME, PARTITION_ID + 1));
       Assert.assertFalse(notExistsPartition);
   }
 
@@ -99,80 +100,92 @@ public class TestStreamFuse {
   public void isStreamExistsTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
       Method method = StreamFuse.class.getDeclaredMethod("isStreamExists", Path.class);
       method.setAccessible(true);
-      boolean existsStream = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER)).toString());
 
+      boolean existsStream = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER)));
       Assert.assertTrue(existsStream);
 
-      boolean notExistsStream = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "2")).toString());
-
+      boolean notExistsStream = (boolean)method.invoke(fuse, root.resolve(STREAM_FOLDER + "2"));
       Assert.assertFalse(notExistsStream);
+
+      boolean isNull = (boolean)(method.invoke(fuse, (Path) null));
+      Assert.assertFalse(isNull);
   }
 
   @Test
   public void isTopicExistsTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
       Method method = StreamFuse.class.getDeclaredMethod("isTopicExists", Path.class);
       method.setAccessible(true);
-      boolean existsTopic = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME)).toString());
 
+      boolean existsTopic = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME)));
       Assert.assertTrue(existsTopic);
 
-      boolean notExistsTopic = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME + "2"))
-              .toString());
-
+      boolean notExistsTopic = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME + "2")));
       Assert.assertFalse(notExistsTopic);
+
+      boolean isNull = (boolean)(method.invoke(fuse, (Path) null));
+      Assert.assertFalse(isNull);
   }
 
   @Test
   public void isTableLinkTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
       Method method = StreamFuse.class.getDeclaredMethod("isTableLink", Path.class);
       method.setAccessible(true);
-      boolean isTable = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER)).toString());
 
+      boolean isTable = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER)));
       Assert.assertTrue(isTable);
 
-      boolean isNotTable = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "2")).toString());
-
+      boolean isNotTable = (boolean)method.invoke(fuse, root.resolve(STREAM_FOLDER + "2"));
       Assert.assertFalse(isNotTable);
+
+      boolean isNull = (boolean)(method.invoke(fuse, (Path) null));
+      Assert.assertFalse(isNull);
   }
 
   @Test
   public void isStreamTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
       Method method = StreamFuse.class.getDeclaredMethod("isStream", Path.class);
       method.setAccessible(true);
-      boolean isStream = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER)).toString());
 
+      boolean isStream = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER)));
       Assert.assertTrue(isStream);
 
-      boolean isNotStream = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "2")).toString());
-
+      boolean isNotStream = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER + "2")));
       Assert.assertFalse(isNotStream);
+
+      boolean isNull = (boolean)(method.invoke(fuse, (Path) null));
+      Assert.assertFalse(isNull);
   }
 
   @Test
   public void isTopicTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
       Method method = StreamFuse.class.getDeclaredMethod("isTopic", Path.class);
       method.setAccessible(true);
-      boolean isTopic = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME)).toString());
 
+      boolean isTopic = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME)));
       Assert.assertTrue(isTopic);
 
-      boolean isNotTopic = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/2/1")).toString());
-
+      boolean isNotTopic = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER + "/2/1")));
       Assert.assertFalse(isNotTopic);
+
+      boolean isNull = (boolean)(method.invoke(fuse, (Path) null));
+      Assert.assertFalse(isNull);
   }
 
   @Test
   public void isPartitionTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
       Method method = StreamFuse.class.getDeclaredMethod("isPartition", Path.class);
       method.setAccessible(true);
+
       boolean isPartition = Boolean.valueOf(method.invoke(fuse,
               root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME + "/" + PARTITION_ID)).toString());
 
       Assert.assertTrue(isPartition);
-
-      boolean isNotPartition = Boolean.valueOf(method.invoke(fuse, root.resolve(STREAM_FOLDER + "2")).toString());
+      boolean isNotPartition = (boolean)(method.invoke(fuse, root.resolve(STREAM_FOLDER + "2")));
 
       Assert.assertFalse(isNotPartition);
+
+      boolean isNull = (boolean)(method.invoke(fuse, (Path) null));
+      Assert.assertFalse(isNull);
   }
 
   @Test
@@ -183,31 +196,31 @@ public class TestStreamFuse {
 
       //Test for stream
       type = (ObjectType) method.invoke(fuse, root.resolve(STREAM_FOLDER));
-      Assert.assertEquals(ObjectType.STREAM,type);
+      Assert.assertEquals(ObjectType.STREAM, type);
 
       //Test for topic
       type = (ObjectType) method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME));
-      Assert.assertEquals(ObjectType.TOPIC,type);
+      Assert.assertEquals(ObjectType.TOPIC, type);
 
       //Test for partition
       type = (ObjectType) method.invoke(fuse, root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME + "/" + PARTITION_ID));
-      Assert.assertEquals(ObjectType.PARTITION,type);
+      Assert.assertEquals(ObjectType.PARTITION, type);
 
       //Test for table
       type = (ObjectType) method.invoke(fuse, table);
-      Assert.assertEquals(ObjectType.TABLE,type);
+      Assert.assertEquals(ObjectType.TABLE, type);
 
       //Test for directory
       type = (ObjectType) method.invoke(fuse, root.resolve("src"));
-      Assert.assertEquals(ObjectType.DIRECTORY,type);
+      Assert.assertEquals(ObjectType.DIRECTORY, type);
 
       //Test for file
       type = (ObjectType) method.invoke(fuse, root.resolve("gradlew"));
-      Assert.assertEquals(ObjectType.FILE,type);
+      Assert.assertEquals(ObjectType.FILE, type);
 
       //Test for link
       type = (ObjectType) method.invoke(fuse, link);
-      Assert.assertEquals(ObjectType.LINK,type);
+      Assert.assertEquals(ObjectType.LINK, type);
   }
 
   @Test
@@ -229,7 +242,7 @@ public class TestStreamFuse {
       //Test for directory creation inside stream
       result = fuse.mkdir(STREAM_FOLDER + "/" + TOPIC_NAME, 511);
       Assert.assertEquals(0, result);
-      verify(adminTopicService, times(1)).createTopic(STREAM_NAME, TOPIC_NAME);
+      verify(adminTopicService, times(1)).createTopic(stream, TOPIC_NAME);
 
       //Test for directory creation inside directory
       result = fuse.mkdir(FOLDER_NAME, 511);
@@ -252,12 +265,12 @@ public class TestStreamFuse {
       //Test for topic
       result = fuse.rmdir(STREAM_FOLDER + "/" + TOPIC_NAME);
       Assert.assertEquals(0, result);
-      verify(adminTopicService, times(1)).removeTopic(STREAM_NAME, TOPIC_NAME);
+      verify(adminTopicService, times(1)).removeTopic(stream, TOPIC_NAME);
 
       //Test for stream
       result = fuse.rmdir(STREAM_FOLDER);
       Assert.assertEquals(0, result);
-      verify(adminTopicService, times(1)).removeStream(STREAM_NAME);
+      verify(adminTopicService, times(1)).removeStream(stream);
 
       //Test for directory
       Files.createDirectories(root.resolve(FOLDER_NAME));
@@ -285,7 +298,7 @@ public class TestStreamFuse {
       ReadDataService tdService = Mockito.mock(ReadDataService.class);
 
       when(tdService.requestTopicSizeData(ArgumentMatchers.matches(STREAM_NAME),
-              ArgumentMatchers.matches(ConvertUtils.transformToTopicName(STREAM_NAME, TOPIC_NAME)),
+              ArgumentMatchers.matches(ConvertUtils.transformToTopicName(Paths.get(STREAM_NAME), TOPIC_NAME)),
               ArgumentMatchers.eq(PARTITION_ID))).thenReturn(TOPIC_SIZE_DATA);
 
       return tdService;
@@ -294,12 +307,13 @@ public class TestStreamFuse {
   public AdminTopicService getAdminTopicServiceMock() throws IOException {
       AdminTopicService admin = Mockito.mock(AdminTopicService.class);
 
-      when(admin.getTopicPartitions(ArgumentMatchers.matches(STREAM_NAME), ArgumentMatchers.matches(TOPIC_NAME)))
+      when(admin.getTopicPartitions(ArgumentMatchers.any(), ArgumentMatchers.matches(TOPIC_NAME)))
               .thenReturn(PARTITION_ID + 1);
 
-      when(admin.streamExists(ArgumentMatchers.matches(STREAM_NAME))).thenReturn(true);
+      when(admin.streamExists(ArgumentMatchers.any())).thenAnswer(
+              (Answer<Boolean>) invocation -> invocation.getArgument(0).toString().endsWith(STREAM_NAME));
 
-      when(admin.getTopicNames(ArgumentMatchers.matches(STREAM_NAME)))
+      when(admin.getTopicNames(ArgumentMatchers.any()))
               .thenReturn( new HashSet<>(Collections.singletonList(TOPIC_NAME)));
 
       return admin;
