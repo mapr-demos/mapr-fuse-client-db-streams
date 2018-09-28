@@ -1,7 +1,6 @@
 package com.mapr.fuse.utils;
 
 import com.mapr.streams.StreamDescriptor;
-import lombok.experimental.UtilityClass;
 import org.slf4j.Logger;
 import ru.serce.jnrfuse.struct.FileStat;
 

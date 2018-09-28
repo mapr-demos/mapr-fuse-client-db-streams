@@ -3,7 +3,6 @@ package com.mapr.fuse.service;
 import com.mapr.streams.Admin;
 import com.mapr.streams.StreamDescriptor;
 import com.mapr.streams.Streams;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
@@ -11,7 +10,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
-@Slf4j
 public class AdminTopicService {
 
     private final Admin admin;
