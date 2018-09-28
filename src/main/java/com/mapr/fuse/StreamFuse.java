@@ -67,9 +67,9 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private int getPartitionSize(Path stream, String topic, int partitionId) throws IOException {
-        return tdService.requestTopicSizeData(stream.toString(),
-                ConvertUtils.transformToTopicName(stream, topic),
-                partitionId);
+        String streamName = ConvertUtils.getStreamPath(stream);
+        return tdService.requestTopicSizeData(streamName,
+                ConvertUtils.transformToTopicName(streamName, topic), partitionId);
     }
 
     private boolean isPartitionExists(Path stream, String topic, Integer partitionId) throws IOException {
@@ -82,7 +82,7 @@ public class StreamFuse extends FuseStubFS {
     }
 
     private boolean isTopicExists(Path path) throws IOException {
-        return adminService.getTopicNames(path.getParent())
+        return path != null && adminService.getTopicNames(path.getParent())
                 .contains(ConvertUtils.getTopicName(path));
     }
 
@@ -120,8 +120,6 @@ public class StreamFuse extends FuseStubFS {
             return path != null && isTableLink(path) && isStreamExists(path);
         } catch (UnsupportedOperationException e) {
             log.error("   illegal state exception {}", e.getMessage());
-            // TODO get rid of this
-            e.printStackTrace();
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
             log.info("Can't access {}", path);
@@ -309,8 +307,7 @@ public class StreamFuse extends FuseStubFS {
                     return ENOTDIR;
             }
         } catch (IOException e) {
-            // TODO put proper trace here
-            e.printStackTrace();
+            log.info("I/O error {}", e.getMessage());
             return EIO;
         }
     }
@@ -424,7 +421,6 @@ public class StreamFuse extends FuseStubFS {
             log.info("read partition {}", fullPath);
             long amountOfBytes = offset + size;
             String topic = ConvertUtils.getTopicName(fullPath.getParent());
-
             TopicPartition partition =
                     new TopicPartition(
                             ConvertUtils.transformToTopicName(fullPath.getParent().getParent(), topic),
