@@ -1,10 +1,7 @@
 package com.mapr.fuse.utils;
 
-import lombok.experimental.UtilityClass;
-
 import java.nio.file.Path;
 
-@UtilityClass
 public class ConvertUtils {
     private final static String TOPIC_NAME_PATTERN = "%s:%s";
 

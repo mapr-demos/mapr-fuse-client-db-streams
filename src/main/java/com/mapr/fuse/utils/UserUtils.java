@@ -1,6 +1,5 @@
 package com.mapr.fuse.utils;
 
-import lombok.experimental.UtilityClass;
 import java.io.InputStream;
 import java.nio.file.attribute.UserPrincipalNotFoundException;
 
