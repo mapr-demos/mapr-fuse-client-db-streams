@@ -78,12 +78,14 @@ public class StreamFuse extends FuseStubFS {
         return adminService.getTopicPartitions(stream, topic) > partitionId;
     }
 
+    // exposed for testing
     boolean isStreamExists(Path path) throws IOException {
         return path != null && adminService.streamExists(path);
     }
 
+    // exposed for testing
     boolean isTopicExists(Path path) throws IOException {
-        return adminService.getTopicNames(path.getParent())
+        return path != null && adminService.getTopicNames(path.getParent())
                 .contains(ConvertUtils.getTopicName(path));
     }
 
@@ -123,8 +125,6 @@ public class StreamFuse extends FuseStubFS {
             return path != null && isTableLink(path) && isStreamExists(path);
         } catch (UnsupportedOperationException e) {
             log.error("   illegal state exception {}", e.getMessage());
-            // TODO get rid of this
-            e.printStackTrace();
             throw new IllegalStateException("Can't happen", e);
         } catch (SecurityException e) {
             log.info("Can't access {}", path);
@@ -315,8 +315,7 @@ public class StreamFuse extends FuseStubFS {
                     return ENOTDIR;
             }
         } catch (IOException e) {
-            // TODO put proper trace here
-            e.printStackTrace();
+            log.info("I/O error {}", e.getMessage());
             return EIO;
         }
     }
@@ -430,7 +429,6 @@ public class StreamFuse extends FuseStubFS {
             log.info("read partition {}", fullPath);
             long amountOfBytes = offset + size;
             String topic = ConvertUtils.getTopicName(fullPath.getParent());
-
             TopicPartition partition =
                     new TopicPartition(
                             ConvertUtils.transformToTopicName(fullPath.getParent().getParent(), topic),
