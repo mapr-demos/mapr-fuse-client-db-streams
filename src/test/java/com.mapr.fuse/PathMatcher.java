@@ -19,6 +19,6 @@ public class PathMatcher implements ArgumentMatcher<Path> {
   }
 
   public boolean matches(Path name) {
-    return this.name.equals(name.toString());
+    return name != null && this.name.equals(name.toString());
   }
 }

@@ -75,48 +75,58 @@ public class TestStreamFuse {
   @Test
   public void getPartitionSizeTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertEquals(TOPIC_SIZE_DATA, fuse.getPartitionSize(root.resolve(STREAM_FOLDER), TOPIC_NAME, PARTITION_ID));
+    assertEquals(0, fuse.getPartitionSize(root.resolve(STREAM_FOLDER), null, PARTITION_ID));
+    assertEquals(0, fuse.getPartitionSize(null, TOPIC_NAME, PARTITION_ID));
   }
 
   @Test
   public void isPartitionExistsTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isPartitionExists(stream, TOPIC_NAME, PARTITION_ID));
     assertFalse(fuse.isPartitionExists(stream, TOPIC_NAME, PARTITION_ID + 1));
+    assertFalse(fuse.isPartitionExists(stream, null, PARTITION_ID + 1));
+    assertFalse(fuse.isPartitionExists(null, TOPIC_NAME, PARTITION_ID + 1));
   }
 
   @Test
   public void isStreamExistsTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isStreamExists(root.resolve(STREAM_FOLDER)));
     assertFalse(fuse.isStreamExists(root.resolve(STREAM_FOLDER + "2")));
+    assertFalse(fuse.isStreamExists(null));
   }
 
   @Test
   public void isTopicExistsTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isTopicExists(root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME)));
     assertFalse(fuse.isTopicExists(root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME + "2")));
+    assertFalse(fuse.isTopicExists(null));
   }
 
   @Test
   public void isTableLinkTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isTableLink(root.resolve(STREAM_FOLDER)));
     assertFalse(fuse.isTableLink(root.resolve(STREAM_FOLDER + "2")));
+    assertFalse(fuse.isTableLink(null));
   }
 
   @Test
   public void isStreamTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isStream(root.resolve(STREAM_FOLDER)));
     assertFalse(fuse.isStream(root.resolve(STREAM_FOLDER + "2")));
+    assertFalse(fuse.isStream(null));
   }
 
   @Test
   public void isTopicTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isTopic(root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME)));
     assertFalse(fuse.isTopic(root.resolve(STREAM_FOLDER + "/2/1")));
+    assertFalse(fuse.isTopic(null));
   }
 
   @Test
   public void isPartitionTest() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, IOException {
     assertTrue(fuse.isPartition(root.resolve(STREAM_FOLDER + "/" + TOPIC_NAME + "/" + PARTITION_ID)));
     assertFalse(fuse.isPartition(root.resolve(STREAM_FOLDER + "2")));
+    assertFalse(fuse.isPartition(null));
   }
 
   @Test

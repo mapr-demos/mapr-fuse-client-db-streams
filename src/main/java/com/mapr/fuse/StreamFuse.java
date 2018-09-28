@@ -68,9 +68,13 @@ public class StreamFuse extends FuseStubFS {
 
     // exposed for testing
     int getPartitionSize(Path stream, String topic, int partitionId) throws IOException {
-        return tdService.requestTopicSizeData(stream.toString(),
+        if (stream == null || topic == null) {
+            return 0;
+        } else {
+            return tdService.requestTopicSizeData(stream.toString(),
                 ConvertUtils.transformToTopicName(stream, topic),
                 partitionId);
+        }
     }
 
     // exposed for testing
