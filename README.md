@@ -39,7 +39,7 @@ $ cd mapr-fuse-client-db-streams
 
 Build a project
 
-** Gradle **
+**Gradle**
 ```bash
 $ ./gradlew clean jarsh
 ```
@@ -63,7 +63,7 @@ $ cp 'value: mapr-fuse-client-db-streams.sh' mirage
 $ chmod +x mirage
 ```
 
-** Maven **
+**Maven**
 
 ```bash
 $ mvn package
@@ -87,6 +87,8 @@ drwxrwxr-x  2 mapr mapr      4096 Oct  1 16:31 surefire-reports/
 drwxrwxr-x  3 mapr mapr      4096 Oct  1 16:30 test-classes/
 
 ```
+
+### Run
 
 Mount MapR-FS as `/mapr` (this is the standard way that MapR FS is mounted either via FUSE or NFS)
 
