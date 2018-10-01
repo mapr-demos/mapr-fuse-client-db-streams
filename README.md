@@ -72,6 +72,7 @@ $ mvn package
 Now, you can find an executable sh in a `target/mirage` folder
 
 ```bash
+$ ll target/mirage/
 total 268972
 drwxrwxr-x  9 mapr mapr      4096 Oct  1 16:31 ./
 drwxr-xr-x 10 mapr mapr      4096 Oct  1 16:30 ../
