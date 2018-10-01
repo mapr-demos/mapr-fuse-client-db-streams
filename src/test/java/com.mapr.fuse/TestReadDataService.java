@@ -7,7 +7,6 @@ import com.mapr.fuse.utils.MessageUtils;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Bytes;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -23,6 +22,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -49,7 +51,7 @@ public class TestReadDataService {
     public final static int PARTITION = 1;
     public List<String> messageList;
 
-    private final static String MESSAGE_CONFIG_STREAM= "/fuse_config";
+    private final static String MESSAGE_CONFIG_STREAM = "/fuse_config";
 
     @Before
     public void init() throws Exception {
@@ -73,10 +75,10 @@ public class TestReadDataService {
     public void testGetLatestConfig() throws IOException {
         MessageConfig messageConfigFromService = readDataService.getLatestConfig("/fuse_config");
 
-        Assert.assertEquals(messageConfig, messageConfigFromService);
+        assertEquals(messageConfig, messageConfigFromService);
 
         MessageConfig wrongMessageConfig = new MessageConfig("", "", "", true);
-        Assert.assertNotEquals(wrongMessageConfig, messageConfigFromService);
+        assertNotEquals(wrongMessageConfig, messageConfigFromService);
     }
 
     @Test
@@ -85,7 +87,7 @@ public class TestReadDataService {
                 MessageUtils.formatMessage(messageConfig, msg, false))
                 .collect(Collectors.joining());
 
-        Assert.assertEquals(Integer.valueOf(resultMessage.getBytes().length),
+        assertEquals(Integer.valueOf(resultMessage.getBytes().length),
                 readDataService.requestTopicSizeData(MESSAGE_CONFIG_STREAM, TOPIC_NAME, PARTITION));
     }
 
@@ -100,7 +102,7 @@ public class TestReadDataService {
         String msgFromService = new String(readDataService.readRequiredBytesFromTopicPartition(
                 new TopicPartition(TOPIC_NAME, PARTITION), 0L, (long) resultMessage.length(), 1000L));
 
-        Assert.assertEquals(resultMessage, msgFromService);
+        assertEquals(resultMessage, msgFromService);
     }
 
     @Test
@@ -111,14 +113,14 @@ public class TestReadDataService {
 
         String resultMessage = messageList.stream().map(msg ->
                 index.getAndIncrement() == 0 ?
-                    MessageUtils.formatMessage(messageConfig, msg.substring(START_CUTOFF), true) :
-                    MessageUtils.formatMessage(messageConfig, msg, false))
+                        MessageUtils.formatMessage(messageConfig, msg.substring(START_CUTOFF), true) :
+                        MessageUtils.formatMessage(messageConfig, msg, false))
                 .collect(Collectors.joining());
 
         String msgFromService = new String(readDataService.readRequiredBytesFromTopicPartition(
-                new TopicPartition(TOPIC_NAME, PARTITION), (long) START_CUTOFF, (long) resultMessage.length() , 1000L));
+                new TopicPartition(TOPIC_NAME, PARTITION), (long) START_CUTOFF, (long) resultMessage.length(), 1000L));
 
-        Assert.assertEquals(resultMessage, msgFromService);
+        assertEquals(resultMessage, msgFromService);
     }
 
     @Test
@@ -132,7 +134,7 @@ public class TestReadDataService {
         String msgFromService = new String(readDataService.readRequiredBytesFromTopicPartition(
                 new TopicPartition(TOPIC_NAME, PARTITION), 0L, (long) MESSAGE_LENGTH, 1000L));
 
-        Assert.assertEquals(new String(Arrays.copyOfRange(resultMessage.getBytes(), 0 , MESSAGE_LENGTH)), msgFromService);
+        assertEquals(new String(Arrays.copyOfRange(resultMessage.getBytes(), 0, MESSAGE_LENGTH)), msgFromService);
     }
 
     @Test
@@ -150,7 +152,7 @@ public class TestReadDataService {
         String msgFromService = new String(readDataService.readRequiredBytesFromTopicPartition(
                 new TopicPartition(TOPIC_NAME, PARTITION), (long) START_CUTOFF, (long) MESSAGE_LENGTH, 1000L));
 
-        Assert.assertEquals(new String(Arrays.copyOfRange(resultMessage.getBytes(), 0 , MESSAGE_LENGTH)), msgFromService);
+        assertEquals(new String(Arrays.copyOfRange(resultMessage.getBytes(), 0, MESSAGE_LENGTH)), msgFromService);
     }
 
     public Bytes[] convertMessagesToBytes(List<String> messageList) {
@@ -160,7 +162,7 @@ public class TestReadDataService {
     public List<String> getRandomMessages(int amount, int minLength, int maxLength) {
         List<String> msgList = new LinkedList<>();
 
-        for(int i = 0; i < amount; i++)
+        for (int i = 0; i < amount; i++)
             msgList.add(getRandomString(minLength, maxLength));
 
         return msgList;
@@ -182,6 +184,6 @@ public class TestReadDataService {
         }
         buffer.append("}");
 
-       return buffer.toString();
+        return buffer.toString();
     }
 }

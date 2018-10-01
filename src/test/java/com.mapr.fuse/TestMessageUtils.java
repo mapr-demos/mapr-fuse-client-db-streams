@@ -2,8 +2,9 @@ package com.mapr.fuse;
 
 import com.mapr.fuse.dto.MessageConfig;
 import com.mapr.fuse.utils.MessageUtils;
-import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class TestMessageUtils {
 
@@ -12,7 +13,7 @@ public class TestMessageUtils {
 
     @Test
     public void getSeparatorsLengthTest() {
-        Assert.assertEquals(configLength, MessageUtils.getSeparatorsLength(config));
+        assertEquals(configLength, MessageUtils.getSeparatorsLength(config));
     }
 
     @Test
@@ -22,7 +23,7 @@ public class TestMessageUtils {
 
         String formattedMessage = MessageUtils.formatMessage(config, message, false);
 
-        Assert.assertEquals(expected, formattedMessage);
+        assertEquals(expected, formattedMessage);
     }
 
     @Test
@@ -34,7 +35,7 @@ public class TestMessageUtils {
 
         String formattedMessage = MessageUtils.formatMessage(config, message, false);
 
-        Assert.assertEquals(expected, formattedMessage);
+        assertEquals(expected, formattedMessage);
     }
 
     @Test
@@ -44,7 +45,7 @@ public class TestMessageUtils {
 
         String formattedMessage = MessageUtils.formatMessage(config, message, true);
 
-        Assert.assertEquals(expected, formattedMessage);
+        assertEquals(expected, formattedMessage);
     }
 
 }

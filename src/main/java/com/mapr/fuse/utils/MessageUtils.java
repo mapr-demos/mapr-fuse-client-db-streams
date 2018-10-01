@@ -9,9 +9,9 @@ public class MessageUtils {
     }
 
     public static String formatMessage(MessageConfig messageConfig, String message, boolean cutStart) {
-        if(cutStart)
+        if (cutStart)
             return String.format("%s%s%s", message, messageConfig.getStop(), messageConfig.getSeparator());
-        else if(messageConfig.getSize())
+        else if (messageConfig.getSize())
             return String.format("%s%d%s%s%s", messageConfig.getStart(), message.length(), message,
                     messageConfig.getStop(), messageConfig.getSeparator());
         else

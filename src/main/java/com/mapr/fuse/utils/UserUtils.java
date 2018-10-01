@@ -8,13 +8,14 @@ public class UserUtils {
     public static long getUid(String userName) throws UserPrincipalNotFoundException {
         return getIdInfo("-u", userName);
     }
+
     public static long getGid(String userName) throws UserPrincipalNotFoundException {
         return getIdInfo("-g", userName);
     }
 
     private static long getIdInfo(String option, String username) throws UserPrincipalNotFoundException {
         StringBuilder output = new StringBuilder();
-        String command =  String.format("id %s %s", option, username);
+        String command = String.format("id %s %s", option, username);
         try {
             Process child = Runtime.getRuntime().exec(command);
             InputStream in = child.getInputStream();

@@ -9,16 +9,16 @@ import java.nio.file.Path;
  * Handy for mocking path name argument matching
  */
 public class PathMatcher implements ArgumentMatcher<Path> {
-  private static final Logger log = org.slf4j.LoggerFactory.getLogger(PathMatcher.class);
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(PathMatcher.class);
 
-  private String name;
+    private String name;
 
-  public PathMatcher(Path root) {
-    assert root != null;
-    this.name = root.toString();
-  }
+    public PathMatcher(Path root) {
+        assert root != null;
+        this.name = root.toString();
+    }
 
-  public boolean matches(Path name) {
-    return name != null && this.name.equals(name.toString());
-  }
+    public boolean matches(Path name) {
+        return name != null && this.name.equals(name.toString());
+    }
 }

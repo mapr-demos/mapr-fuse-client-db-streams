@@ -5,7 +5,6 @@ import com.mapr.fuse.utils.UserUtils;
 import com.mapr.streams.StreamDescriptor;
 import com.mapr.streams.Streams;
 import jnr.ffi.Runtime;
-import org.junit.Assert;
 import org.junit.Test;
 import ru.serce.jnrfuse.struct.FileStat;
 
@@ -20,6 +19,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
 import static ru.serce.jnrfuse.struct.FileStat.*;
 
 public class TestAttrsUtils {
@@ -39,25 +39,25 @@ public class TestAttrsUtils {
 
         Set<PosixFilePermission> permissions = AttrsUtils.decodeMode(511);
 
-        Assert.assertEquals(expected, permissions);
+        assertEquals(expected, permissions);
     }
 
     @Test
     public void setupAttrsTest() throws IOException {
         File file = new File(System.getProperty("user.dir"));
         FileStat stat = new FileStat(Runtime.getSystemRuntime());
-        Path path =  file.toPath();
+        Path path = file.toPath();
         PosixFileAttributes attrs = Files.getFileAttributeView(path, PosixFileAttributeView.class).readAttributes();
 
         AttrsUtils.setupAttrs(path, stat);
 
-        Assert.assertEquals(((S_IFDIR + S_IRUSR) | 493), stat.st_mode.intValue());
-        Assert.assertEquals(file.length(), stat.st_size.intValue());
-        Assert.assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
-        Assert.assertEquals(UserUtils.getUid(Files.getOwner(path).getName()), stat.st_uid.longValue());
-        Assert.assertEquals(UserUtils.getGid(attrs.group().getName()), stat.st_gid.longValue());
-        Assert.assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
-        Assert.assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
+        assertEquals(((S_IFDIR + S_IRUSR) | 493), stat.st_mode.intValue());
+        assertEquals(file.length(), stat.st_size.intValue());
+        assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
+        assertEquals(UserUtils.getUid(Files.getOwner(path).getName()), stat.st_uid.longValue());
+        assertEquals(UserUtils.getGid(attrs.group().getName()), stat.st_gid.longValue());
+        assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
+        assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
     }
 
     @Test
@@ -65,7 +65,7 @@ public class TestAttrsUtils {
         File streamFile = new File(System.getProperty("user.dir") + "/stream");
         File file = streamFile.getParentFile();
         FileStat stat = new FileStat(Runtime.getSystemRuntime());
-        Path path =  streamFile.toPath();
+        Path path = streamFile.toPath();
         int topicsAmount = 10;
         StreamDescriptor stream = Streams.newStreamDescriptor();
         stream.setAdminPerms("u:root");
@@ -74,13 +74,13 @@ public class TestAttrsUtils {
 
         AttrsUtils.setupAttrsStream(stream, topicsAmount, path, stat);
 
-        Assert.assertEquals(((S_IFDIR + S_IRUSR) | 384), stat.st_mode.intValue());
-        Assert.assertEquals(topicsAmount, stat.st_size.intValue());
-        Assert.assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
-        Assert.assertEquals(0, stat.st_uid.longValue());
-        Assert.assertEquals(0, stat.st_gid.longValue());
-        Assert.assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
-        Assert.assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
+        assertEquals(((S_IFDIR + S_IRUSR) | 384), stat.st_mode.intValue());
+        assertEquals(topicsAmount, stat.st_size.intValue());
+        assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
+        assertEquals(0, stat.st_uid.longValue());
+        assertEquals(0, stat.st_gid.longValue());
+        assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
+        assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
     }
 
     @Test
@@ -88,7 +88,7 @@ public class TestAttrsUtils {
         File topicFile = new File(System.getProperty("user.dir") + "/stream/topic");
         File file = topicFile.getParentFile().getParentFile();
         FileStat stat = new FileStat(Runtime.getSystemRuntime());
-        Path path =  topicFile.toPath();
+        Path path = topicFile.toPath();
         int partitionsAmount = 10;
         StreamDescriptor stream = Streams.newStreamDescriptor();
         stream.setAdminPerms("u:root");
@@ -97,13 +97,13 @@ public class TestAttrsUtils {
 
         AttrsUtils.setupAttrsTopic(stream, partitionsAmount, path, stat);
 
-        Assert.assertEquals(((S_IFDIR + S_IRUSR) | 384), stat.st_mode.intValue());
-        Assert.assertEquals(partitionsAmount, stat.st_size.intValue());
-        Assert.assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
-        Assert.assertEquals(0, stat.st_uid.longValue());
-        Assert.assertEquals(0, stat.st_gid.longValue());
-        Assert.assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
-        Assert.assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
+        assertEquals(((S_IFDIR + S_IRUSR) | 384), stat.st_mode.intValue());
+        assertEquals(partitionsAmount, stat.st_size.intValue());
+        assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
+        assertEquals(0, stat.st_uid.longValue());
+        assertEquals(0, stat.st_gid.longValue());
+        assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
+        assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
     }
 
     @Test
@@ -111,7 +111,7 @@ public class TestAttrsUtils {
         File topicFile = new File(System.getProperty("user.dir") + "/stream/topic/0");
         File file = topicFile.getParentFile().getParentFile().getParentFile();
         FileStat stat = new FileStat(Runtime.getSystemRuntime());
-        Path path =  topicFile.toPath();
+        Path path = topicFile.toPath();
         int partitionSize = 154;
         StreamDescriptor stream = Streams.newStreamDescriptor();
         stream.setAdminPerms("u:root");
@@ -120,13 +120,13 @@ public class TestAttrsUtils {
 
         AttrsUtils.setupAttrsPartition(stream, partitionSize, path, stat);
 
-        Assert.assertEquals(((S_IFREG + S_IRUSR) | 384), stat.st_mode.intValue());
-        Assert.assertEquals(partitionSize, stat.st_size.intValue());
-        Assert.assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
-        Assert.assertEquals(0, stat.st_uid.longValue());
-        Assert.assertEquals(0, stat.st_gid.longValue());
-        Assert.assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
-        Assert.assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
+        assertEquals(((S_IFREG + S_IRUSR) | 384), stat.st_mode.intValue());
+        assertEquals(partitionSize, stat.st_size.intValue());
+        assertEquals(file.lastModified() / 1000, stat.st_mtim.tv_sec.intValue());
+        assertEquals(0, stat.st_uid.longValue());
+        assertEquals(0, stat.st_gid.longValue());
+        assertEquals(attrs.creationTime().to(TimeUnit.SECONDS), stat.st_ctim.tv_sec.intValue());
+        assertEquals(attrs.lastAccessTime().to(TimeUnit.SECONDS), stat.st_atim.tv_sec.intValue());
     }
 
 }

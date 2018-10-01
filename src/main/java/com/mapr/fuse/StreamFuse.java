@@ -37,9 +37,8 @@ public class StreamFuse extends FuseStubFS {
     private AdminTopicService adminService;
     private TopicWriter topicWriter;
 
-    // exposed for testing
     StreamFuse(Path root, ReadDataService tdService, TopicWriter topicWriter,
-                       AdminTopicService adminService) {
+               AdminTopicService adminService) {
         this.root = root;
         this.tdService = tdService;
         this.topicWriter = topicWriter;
@@ -66,33 +65,29 @@ public class StreamFuse extends FuseStubFS {
         }
     }
 
-    // exposed for testing
     int getPartitionSize(Path stream, String topic, int partitionId) throws IOException {
         if (stream == null || topic == null) {
             return 0;
         } else {
             String streamName = ConvertUtils.getStreamPath(stream);
             return tdService.requestTopicSizeData(streamName,
-                ConvertUtils.transformToTopicName(streamName, topic), partitionId);}
+                    ConvertUtils.transformToTopicName(streamName, topic), partitionId);
+        }
     }
 
-    // exposed for testing
     boolean isPartitionExists(Path stream, String topic, Integer partitionId) throws IOException {
         return adminService.getTopicPartitions(stream, topic) > partitionId;
     }
 
-    // exposed for testing
     boolean isStreamExists(Path path) throws IOException {
         return path != null && adminService.streamExists(path);
     }
 
-    // exposed for testing
     boolean isTopicExists(Path path) throws IOException {
         return path != null && adminService.getTopicNames(path.getParent())
                 .contains(ConvertUtils.getTopicName(path));
     }
 
-    // exposed for testing
     ObjectType getObjectType(Path path) throws IOException {
         if (path == null) {
             return ObjectType.WHATEVER;
@@ -110,7 +105,7 @@ public class StreamFuse extends FuseStubFS {
             return ObjectType.DIRECTORY;
         } else if (Files.isSymbolicLink(path)) {
             return ObjectType.LINK;
-        } else if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+        } else if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             return ObjectType.FILE;
         } else {
             return ObjectType.WHATEVER;
@@ -122,7 +117,6 @@ public class StreamFuse extends FuseStubFS {
                 (TABLE_LINK_PATTERN.matcher(Files.readSymbolicLink(path).toString()).matches());
     }
 
-    // exposed for testing
     boolean isStream(Path path) throws IOException {
         try {
             return path != null && isTableLink(path) && isStreamExists(path);
