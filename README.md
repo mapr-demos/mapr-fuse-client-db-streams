@@ -39,11 +39,12 @@ $ cd mapr-fuse-client-db-streams
 
 Build a project
 
+** Gradle **
 ```bash
 $ ./gradlew clean jarsh
 ```
 
-Now, you can find an executable sh in a build/libs folder
+Now, you can find an executable sh in a `build/libs` folder
 
 ```bash
 $ ll build/libs/
@@ -60,6 +61,31 @@ Copy `'value: mapr-fuse-client-db-streams.sh'` to your folder and make it execut
 ```bash
 $ cp 'value: mapr-fuse-client-db-streams.sh' mirage
 $ chmod +x mirage
+```
+
+** Maven **
+
+```bash
+$ mvn package
+```
+
+Now, you can find an executable sh in a `target/mirage` folder
+
+```bash
+total 268972
+drwxrwxr-x  9 mapr mapr      4096 Oct  1 16:31 ./
+drwxr-xr-x 10 mapr mapr      4096 Oct  1 16:30 ../
+drwxrwxr-x  3 mapr mapr      4096 Oct  1 16:30 classes/
+drwxrwxr-x  3 mapr mapr      4096 Oct  1 16:30 generated-sources/
+drwxrwxr-x  3 mapr mapr      4096 Oct  1 16:30 generated-test-sources/
+-rw-rw-r--  1 mapr mapr 124530454 Oct  1 16:31 mapr-fuse-client-db-streams-1.0-SNAPSHOT.jar
+drwxrwxr-x  2 mapr mapr      4096 Oct  1 16:31 maven-archiver/
+drwxrwxr-x  3 mapr mapr      4096 Oct  1 16:30 maven-status/
+-rwxrwxr-x  1 mapr mapr 124530498 Oct  1 16:31 mirage*
+-rw-rw-r--  1 mapr mapr  26328980 Oct  1 16:31 original-mapr-fuse-client-db-streams-1.0-SNAPSHOT.jar
+drwxrwxr-x  2 mapr mapr      4096 Oct  1 16:31 surefire-reports/
+drwxrwxr-x  3 mapr mapr      4096 Oct  1 16:30 test-classes/
+
 ```
 
 Mount MapR-FS as `/mapr` (this is the standard way that MapR FS is mounted either via FUSE or NFS)
