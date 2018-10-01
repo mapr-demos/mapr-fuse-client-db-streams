@@ -69,10 +69,10 @@ $ chmod +x mirage
 $ mvn package
 ```
 
-Now, you can find an executable sh in a `target/mirage` folder
+Now, you can find an executable sh in a `target` folder
 
 ```bash
-$ ll target/mirage/
+$ ll target/
 total 268972
 drwxrwxr-x  9 mapr mapr      4096 Oct  1 16:31 ./
 drwxr-xr-x 10 mapr mapr      4096 Oct  1 16:30 ../
